@@ -1,0 +1,143 @@
+{
+  "site": "irago",
+  "site_name_ja": "伊良湖",
+  "species": "マダイ",
+  "date": "2026-05-19",
+  "hour": 6,
+  "boat": "maruman2010",
+  "anglers": 6,
+  "tackle": "タイラバ",
+  "prediction": {
+    "predicted_top_per_angler": 2,
+    "tier": 3,
+    "tier_label": "普通",
+    "confidence": "low",
+    "signal_used": "count_yolo",
+    "reasoning": "本船の primary_signal は top_per_angler ですがデータが無く、次に信頼できる count_yolo の中央値は 4 尾です。乗船人数 6 人で割ると平均は約 0.7 尾、個人最大は平均の 2〜3 倍程度と推測されます。現在の水温 19℃、波高 0.6 m、潮流が穏やかでマダイの活性が期待できる点がプラス要因です。",
+    "key_factors": [
+      "海面水温がマダイの活性期に近い 19℃",
+      "波高が低く安定した海況",
+      "潮流が穏やかで餌が集まりやすい",
+      "中潮で底が適度に露出"
+    ],
+    "risk_factors": [
+      "曇りで光が弱く、マダイの活性が低下する可能性",
+      "月齢が新月に近く、潮汐の刺激が弱い",
+      "過去の実績が乏しく予測の不確実性が高い"
+    ]
+  },
+  "boat_context": {
+    "n_trips_total": 67,
+    "primary_signal": "top_per_angler",
+    "secondary_signal": "count_yolo",
+    "signals": {
+      "top_per_angler": {
+        "n": 0
+      },
+      "count_yolo": {
+        "n": 67,
+        "mean": 6.07,
+        "median": 4.0,
+        "std": 6.2,
+        "min": 1.0,
+        "max": 29.0,
+        "p25": 2.0,
+        "p75": 7.5,
+        "tier_cutoffs": [
+          2.0,
+          3.0,
+          5.0,
+          9.0
+        ]
+      },
+      "total_catch": {
+        "n": 67,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "qualitative": {
+        "n": 0,
+        "distribution": {}
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-05-03",
+        "top_per_angler": NaN,
+        "count_yolo": 2.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-05-06",
+        "top_per_angler": NaN,
+        "count_yolo": 2.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-05-10",
+        "top_per_angler": NaN,
+        "count_yolo": 1.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-05-11",
+        "top_per_angler": NaN,
+        "count_yolo": 4.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-05-12",
+        "top_per_angler": NaN,
+        "count_yolo": 1.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "イサキ便行ってきました"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 16.5,
+    "wind_speed_10m": 2.8,
+    "wind_direction_10m": 130.0,
+    "pressure_msl": 1019.3,
+    "precipitation": 0.0,
+    "cloud_cover": 100.0,
+    "wave_height": 0.58,
+    "wave_period": 8.4,
+    "swell_wave_height": 0.42,
+    "ocean_current_velocity": 0.6,
+    "ocean_current_direction": 214.0,
+    "sea_surface_temperature": 19.1,
+    "sea_level_height_msl": 0.78,
+    "moon_age": 2.4,
+    "moon_phase": "三日月",
+    "tide_phase": "中潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "cerebras",
+    "name": "gpt-oss-120b",
+    "label_column": "top_per_angler"
+  }
+}

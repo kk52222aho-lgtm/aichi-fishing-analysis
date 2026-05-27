@@ -1,0 +1,121 @@
+{
+  "site": "irago",
+  "site_name_ja": "伊良湖",
+  "species": "イサキ",
+  "date": "2026-05-15",
+  "hour": 5,
+  "boat": "maruman2010",
+  "anglers": 10,
+  "tackle": "サビキ",
+  "prediction": {
+    "predicted_top_per_angler": 18,
+    "tier": 4,
+    "tier_label": "好調",
+    "confidence": "medium",
+    "reasoning": "maruman2010さんのイサキ便、5月15日は大潮と有明の月齢が重なる絶好のタイミングだね。イサキは潮が動くほど活性が上がる魚だから、大潮の恩恵は大きい。海水温も18.4℃と適水温で、食い気は十分にあるはずだ。直近の5月6日の釣果が10匹とやや落ち着いたのは気になるが、4月は連日20～30匹と爆釣していた実績がある。この船の船長はポイント選びも的確だから、大潮の潮目を読んで良い群れに当ててくれるだろう。竿頭は18匹と予測するが、潮次第では20匹超えも十分にあり得る状況だ。",
+    "key_factors": [
+      "大潮によるイサキの活性向上と広範囲な群れの移動",
+      "有明の月齢が日中のイサキの食い気を刺激",
+      "イサキの適水温である18.4℃",
+      "早朝出船でイサキのゴールデンタイムを狙える",
+      "船宿の4月におけるイサキの好調な実績"
+    ],
+    "risk_factors": [
+      "直近の釣果（5/6）がやや落ち着いていた点",
+      "風速がやや強く、仕掛けの投入や潮の流れに影響する可能性",
+      "5月のデータがまだ少なく、月ごとの傾向を判断しにくい"
+    ],
+    "vs_boat_avg": 1.301,
+    "vs_boat_median": 1.286
+  },
+  "boat_context": {
+    "n_trips": 25,
+    "mean": 13.84,
+    "median": 14.0,
+    "std": 7.8,
+    "min": 5.0,
+    "max": 30.0,
+    "p25": 6.0,
+    "p75": 18.0,
+    "tier_cutoffs": [
+      6.0,
+      9.6,
+      14.0,
+      20.2
+    ],
+    "by_month": {
+      "1": {
+        "mean": 5.0,
+        "n": 1
+      },
+      "3": {
+        "mean": 13.5,
+        "n": 4
+      },
+      "4": {
+        "mean": 17.6,
+        "n": 14
+      },
+      "5": {
+        "mean": 10.0,
+        "n": 1
+      },
+      "12": {
+        "mean": 6.2,
+        "n": 5
+      }
+    },
+    "recent_5_trips": [
+      {
+        "datetime": "2026-04-27",
+        "top_per_angler": 30.0,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-04-28",
+        "top_per_angler": 30.0,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-04-29",
+        "top_per_angler": 20.0,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-04-30",
+        "top_per_angler": 21.0,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-05-06",
+        "top_per_angler": 10.0,
+        "entry_title": "イサキ便行ってきました"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 16.5,
+    "wind_speed_10m": 9.9,
+    "wind_direction_10m": 57.0,
+    "pressure_msl": 1020.6,
+    "precipitation": 0.0,
+    "cloud_cover": 40.0,
+    "wave_height": 0.72,
+    "wave_period": 7.5,
+    "swell_wave_height": 0.62,
+    "ocean_current_velocity": 0.4,
+    "ocean_current_direction": 153.0,
+    "sea_surface_temperature": 18.4,
+    "sea_level_height_msl": 0.52,
+    "moon_age": 27.9,
+    "moon_phase": "有明",
+    "tide_phase": "大潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "gemini",
+    "name": "gemini-2.5-flash",
+    "label_column": "top_per_angler"
+  }
+}

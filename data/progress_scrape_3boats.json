@@ -1,0 +1,23 @@
+{
+  "matobaya": {
+    "status": "done",
+    "started_at": "2026-05-24T00:33:37",
+    "finished_at": "2026-05-24T03:11:09",
+    "elapsed_min": 157.5,
+    "n_rows": 2599
+  },
+  "go-arimotomaru": {
+    "status": "done",
+    "started_at": "2026-05-24T03:11:09",
+    "finished_at": "2026-05-24T05:18:43",
+    "elapsed_min": 127.6,
+    "n_rows": 3724
+  },
+  "seablue-0908": {
+    "status": "done",
+    "started_at": "2026-05-24T05:18:43",
+    "finished_at": "2026-05-24T07:27:18",
+    "elapsed_min": 128.6,
+    "n_rows": 4396
+  }
+}

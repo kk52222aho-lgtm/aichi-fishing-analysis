@@ -1,0 +1,147 @@
+{
+  "site": "utsumi_shinko",
+  "site_name_ja": "内海新港",
+  "species": "マダイ",
+  "date": "2026-05-15",
+  "hour": 5,
+  "boat": "ありもと丸",
+  "anglers": 8,
+  "tackle": "タイラバ",
+  "prediction": {
+    "predicted_top_per_angler": 2,
+    "tier": 3,
+    "tier_label": "普通",
+    "confidence": "medium",
+    "reasoning": "ありもと丸のマダイ釣り、タイラバでの過去実績は定性評価が「絶好調」と「厳しい」で二分されており、非常にムラがあるのが特徴です。特に注目すべきは、「マダイ好調」とブログタイトルにある日でも、船全体の釣果（total_catch）が0尾と記録されている点です。これは、データ記録の特性か、あるいはアタリは多いもののフッキングやランディングに至らないケースが多い可能性を示唆しています。しかし、船長が「好調」と判断する日がある以上、マダイの群れや活性が高い状況は存在すると考えられます。2026年5月15日のコンディションは、大潮で潮の流れが期待でき、水温もマダイの活性が上がる18.0℃と適水温です。波も穏やかで釣りやすい好条件が揃っています。これらの好条件と、過去に「絶好調」と評価された日のポテンシャルを考慮すると、竿頭で2尾程度の釣果は期待できる「普通」の釣果と予測します。ただし、過去の数値実績の低さから、爆釣とまではいかないでしょう。当日の潮の動きと、船長のポイント選択、そしてタイラバのカラーや巻きスピードが釣果を左右する鍵となります。",
+    "key_factors": [
+      "大潮の潮回りによるマダイの活性向上期待",
+      "適水温（18.0℃）でマダイの活性が高い時期",
+      "穏やかな海況で釣りやすい",
+      "過去に「絶好調」と評価された日がある船のポテンシャル"
+    ],
+    "risk_factors": [
+      "過去の数値実績（total_catch）が非常に低く、定性評価との乖離が大きい",
+      "「絶好調」と評価された日でも、実際の釣果が伸び悩む可能性",
+      "乗船人数が8人と多めで、竿頭の競争率が高い"
+    ],
+    "signal_used": "qualitative"
+  },
+  "boat_context": {
+    "n_trips_total": 5,
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch",
+    "signals": {
+      "top_per_angler": {
+        "n": 0
+      },
+      "count_yolo": {
+        "n": 5,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "total_catch": {
+        "n": 5,
+        "mean": 0.2,
+        "median": 0.0,
+        "std": 0.4,
+        "min": 0.0,
+        "max": 1.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.2
+        ]
+      },
+      "qualitative": {
+        "n": 5,
+        "distribution": {
+          "厳しい": 2,
+          "絶好調": 2,
+          "渋い": 1
+        }
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-05-06",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "厳しい",
+        "entry_title": "5月6日(水)　GW最終日でした‼️"
+      },
+      {
+        "datetime": "2026-05-07",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "絶好調",
+        "entry_title": "5月7日(木)　マダイ好調でした⤴️"
+      },
+      {
+        "datetime": "2026-05-08",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "絶好調",
+        "entry_title": "5月8日(金)　タイラバ絶好調です‼️"
+      },
+      {
+        "datetime": "2026-05-10",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "渋い",
+        "entry_title": "5月10日(日)　今日はいろいろと～‼️"
+      },
+      {
+        "datetime": "2026-05-11",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 1.0,
+        "qualitative": "厳しい",
+        "entry_title": "5月11日(月)　トラフグ元気でした！"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 17.3,
+    "wind_speed_10m": 6.9,
+    "wind_direction_10m": 99.0,
+    "pressure_msl": 1020.1,
+    "precipitation": 0.0,
+    "cloud_cover": 29.0,
+    "wave_height": 0.3,
+    "wave_period": 6.0,
+    "swell_wave_height": 0.24,
+    "ocean_current_velocity": 0.4,
+    "ocean_current_direction": 153.0,
+    "sea_surface_temperature": 18.0,
+    "sea_level_height_msl": 0.54,
+    "moon_age": 27.9,
+    "moon_phase": "有明",
+    "tide_phase": "大潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "gemini",
+    "name": "gemini-2.5-flash",
+    "label_column": "top_per_angler"
+  }
+}

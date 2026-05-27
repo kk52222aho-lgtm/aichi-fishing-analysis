@@ -1,0 +1,110 @@
+{
+  "site": "irago",
+  "site_name_ja": "伊良湖",
+  "species": "イサキ",
+  "date": "2026-03-28",
+  "hour": 5,
+  "boat": "maruman2010",
+  "anglers": null,
+  "tackle": null,
+  "prediction": {
+    "predicted_top_per_angler": 12,
+    "tier": 4,
+    "tier_label": "好調",
+    "confidence": "medium",
+    "reasoning": "過去の実績から、3月のイサキ釣りでは平均13.5尾と好調な結果が出ていることがわかります。また、最近の5回の出船のうち、3月22日と3月24日のイサキ釣りでは13尾と14尾の好結果が出ています。ただし、出船人数や仕掛けが不明なため、予測の精度に若干の不確実性があります。今日のコンディションは、風速や波高がやや高めですが、海面水温が12.8度と適切な条件です。",
+    "key_factors": [
+      "3月のイサキ釣りの好調な平均実績",
+      "最近の出船での好結果",
+      "適切な海面水温"
+    ],
+    "risk_factors": [
+      "風速や波高のやや高め",
+      "出船人数や仕掛けの不明"
+    ],
+    "vs_boat_avg": 1.523,
+    "vs_boat_median": 2.0
+  },
+  "boat_context": {
+    "n_trips": 8,
+    "mean": 7.88,
+    "median": 6.0,
+    "std": 3.3,
+    "min": 5.0,
+    "max": 14.0,
+    "p25": 6.0,
+    "p75": 8.5,
+    "tier_cutoffs": [
+      6.0,
+      6.0,
+      6.2,
+      10.6
+    ],
+    "by_month": {
+      "1": {
+        "mean": 5.0,
+        "n": 1
+      },
+      "3": {
+        "mean": 13.5,
+        "n": 2
+      },
+      "12": {
+        "mean": 6.2,
+        "n": 5
+      }
+    },
+    "recent_5_trips": [
+      {
+        "datetime": "2025-12-29",
+        "top_per_angler": 7.0,
+        "entry_title": "五目釣り便行ってきました"
+      },
+      {
+        "datetime": "2025-12-30",
+        "top_per_angler": 6.0,
+        "entry_title": "五目釣り便行ってきました"
+      },
+      {
+        "datetime": "2026-01-07",
+        "top_per_angler": 5.0,
+        "entry_title": "五目釣り便行ってきました"
+      },
+      {
+        "datetime": "2026-03-22",
+        "top_per_angler": 13.0,
+        "entry_title": "イサキ便行ってきました"
+      },
+      {
+        "datetime": "2026-03-24",
+        "top_per_angler": 14.0,
+        "entry_title": "イサキ便行ってきました"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 11.2,
+    "wind_speed_10m": 8.8,
+    "wind_direction_10m": 325.0,
+    "pressure_msl": 1014.3,
+    "precipitation": 0.0,
+    "cloud_cover": 28.0,
+    "wave_height": 1.08,
+    "wave_period": 8.9,
+    "swell_wave_height": 1.04,
+    "ocean_current_velocity": 0.6,
+    "ocean_current_direction": 108.0,
+    "sea_surface_temperature": 12.8,
+    "sea_level_height_msl": 0.41,
+    "moon_age": 9.5,
+    "moon_phase": "十三夜",
+    "tide_phase": "長潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "groq",
+    "name": "llama-3.3-70b-versatile",
+    "label_column": "top_per_angler"
+  }
+}

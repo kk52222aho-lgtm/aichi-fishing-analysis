@@ -1,0 +1,52 @@
+{
+  "site": "morozaki",
+  "site_name_ja": "師崎",
+  "species": "マダイ",
+  "date": "2026-05-15",
+  "hour": 5,
+  "boat": "武丸",
+  "anglers": 8,
+  "tackle": "タイラバ",
+  "prediction": {
+    "predicted_top_per_angler": 2,
+    "tier": 3,
+    "tier_label": "普通",
+    "confidence": "low",
+    "signal_used": "none",
+    "reasoning": "過去のデータが不足しているため、LLMの事前知識と当日のコンディションから推定しています。マダイの釣りでは、海面温度と潮の関係が重要な要素です。当日の海面温度は18.5度で、潮のフェーズは大潮です。これらの条件はマダイの活動に適しています。しかし、風速が8.2m/sとやや強いことと、波の高さが0.34mと多少の波があり、これがマダイの活動に影響を与える可能性があります。したがって、普通の釣果が予想されます。",
+    "key_factors": [
+      "海面温度18.5度",
+      "大潮"
+    ],
+    "risk_factors": [
+      "風速8.2m/s",
+      "波の高さ0.34m"
+    ]
+  },
+  "boat_context": {},
+  "conditions": {
+    "temperature_2m": 17.0,
+    "wind_speed_10m": 8.2,
+    "wind_direction_10m": 67.0,
+    "pressure_msl": 1020.2,
+    "precipitation": 0.0,
+    "cloud_cover": 28.0,
+    "wave_height": 0.34,
+    "wave_period": 6.2,
+    "swell_wave_height": 0.28,
+    "ocean_current_velocity": 0.9,
+    "ocean_current_direction": 169.0,
+    "sea_surface_temperature": 18.5,
+    "sea_level_height_msl": 0.55,
+    "moon_age": 27.9,
+    "moon_phase": "有明",
+    "tide_phase": "大潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "groq",
+    "name": "llama-3.3-70b-versatile",
+    "label_column": "top_per_angler"
+  }
+}

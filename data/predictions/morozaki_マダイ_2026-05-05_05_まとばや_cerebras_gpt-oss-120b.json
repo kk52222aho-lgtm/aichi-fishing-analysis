@@ -1,0 +1,162 @@
+{
+  "site": "morozaki",
+  "site_name_ja": "師崎",
+  "species": "マダイ",
+  "date": "2026-05-05",
+  "hour": 5,
+  "boat": "まとばや",
+  "anglers": null,
+  "tackle": null,
+  "prediction": {
+    "predicted_top_per_angler": 6,
+    "tier": 4,
+    "tier_label": "好調",
+    "confidence": "medium",
+    "signal_used": "qualitative",
+    "reasoning": "過去の定性評価では『好調』が全体の約46%と最も多く、今回も同様の確率が高いと判断しました。現在の海面温度16.6℃、中潮、波高0.6mとマダイが好む環境が揃っている点もプラスです。",
+    "key_factors": [
+      "海面温度16.6℃がマダイに適温",
+      "中潮で餌が底層に集まりやすい",
+      "波高0.6mで安定した釣りが可能",
+      "直近の『好調』評価が続いている"
+    ],
+    "risk_factors": [
+      "風速28.5 m/sと強風で釣り姿勢が不安定",
+      "風向きが北西寄りで潮流が逆行しやすい",
+      "最近の『渋い』・『厳しい』評価が混在"
+    ]
+  },
+  "boat_context": {
+    "n_trips_total": 45,
+    "primary_signal": "qualitative",
+    "secondary_signal": null,
+    "signals": {
+      "top_per_angler": {
+        "n": 5,
+        "mean": 11.8,
+        "median": 3.0,
+        "std": 19.14,
+        "min": 1.0,
+        "max": 50.0,
+        "p25": 1.0,
+        "p75": 4.0,
+        "tier_cutoffs": [
+          1.0,
+          2.2,
+          3.4,
+          13.2
+        ]
+      },
+      "count_yolo": {
+        "n": 45,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "total_catch": {
+        "n": 45,
+        "mean": 0.18,
+        "median": 0.0,
+        "std": 0.57,
+        "min": 0.0,
+        "max": 3.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "qualitative": {
+        "n": 41,
+        "distribution": {
+          "好調": 19,
+          "渋い": 8,
+          "厳しい": 6,
+          "普通": 6,
+          "ボウズ": 2
+        }
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-04-26",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "好調",
+        "entry_title": "4月26日（日）今日はジギング＆タイラバ"
+      },
+      {
+        "datetime": "2026-04-29",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "好調",
+        "entry_title": "4月29日（水）今日もほぼタイラバ"
+      },
+      {
+        "datetime": "2026-05-01",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "厳しい",
+        "entry_title": "4月30日（金）今日はお休み"
+      },
+      {
+        "datetime": "2026-05-03",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "渋い",
+        "entry_title": "5月3日（日）午前便、午後便"
+      },
+      {
+        "datetime": "2026-05-04",
+        "top_per_angler": 4.0,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "5月4日（月）ジギング＆タイラバ"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 13.2,
+    "wind_speed_10m": 28.5,
+    "wind_direction_10m": 331.0,
+    "pressure_msl": 1018.3,
+    "precipitation": 0.0,
+    "cloud_cover": 4.0,
+    "wave_height": 0.6,
+    "wave_period": 3.6,
+    "swell_wave_height": 0.18,
+    "ocean_current_velocity": 0.3,
+    "ocean_current_direction": 45.0,
+    "sea_surface_temperature": 16.6,
+    "sea_level_height_msl": 0.45,
+    "moon_age": 17.9,
+    "moon_phase": "十六夜",
+    "tide_phase": "中潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "cerebras",
+    "name": "gpt-oss-120b",
+    "label_column": "top_per_angler"
+  }
+}

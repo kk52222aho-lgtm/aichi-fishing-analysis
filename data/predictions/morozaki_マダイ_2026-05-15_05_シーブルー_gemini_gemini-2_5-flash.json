@@ -1,0 +1,161 @@
+{
+  "site": "morozaki",
+  "site_name_ja": "師崎",
+  "species": "マダイ",
+  "date": "2026-05-15",
+  "hour": 5,
+  "boat": "シーブルー",
+  "anglers": 6,
+  "tackle": "タイラバ",
+  "prediction": {
+    "predicted_top_per_angler": 5,
+    "tier": 3,
+    "tier_label": "普通",
+    "confidence": "medium",
+    "reasoning": "シーブルーのマダイタイラバの過去実績を見ると、定性評価では「好調」が11回、「渋い」が10回と拮抗しており、どちらか一方に大きく偏る傾向はありません。また、「竿頭」の過去実績中央値は3尾で、これは5段階評価の「普通」に相当します。直近の「好調」報告の中にも竿頭が1尾や6尾といったケースが見られることから、この船の「好調」は必ずしも数釣りを意味するわけではないと推測されます。本日は大潮で潮の流れが速く、風もやや強め（8.2m/s）のため、タイラバの操作には工夫が必要となるでしょう。しかし、潮が動くことでマダイの活性が上がる可能性も秘めています。これらの状況を総合的に判断し、竿頭は平均的な釣果である5尾と予測します。これは5段階評価で「普通」に相当します。",
+    "key_factors": [
+      "過去の定性評価で「好調」と「渋い」が拮抗している",
+      "竿頭の過去実績中央値が3尾であること",
+      "大潮による強い潮の流れが期待できる",
+      "海面水温18.5℃とマダイ狙いには適水温"
+    ],
+    "risk_factors": [
+      "やや強めの風（8.2m/s）と強い潮によるタイラバの操作難易度上昇",
+      "オマツリ発生のリスク",
+      "過去の「好調」報告が必ずしも数釣りを意味しない可能性"
+    ],
+    "signal_used": "qualitative"
+  },
+  "boat_context": {
+    "n_trips_total": 24,
+    "primary_signal": "qualitative",
+    "secondary_signal": null,
+    "signals": {
+      "top_per_angler": {
+        "n": 11,
+        "mean": 19.09,
+        "median": 3.0,
+        "std": 22.5,
+        "min": 1.0,
+        "max": 50.0,
+        "p25": 1.0,
+        "p75": 47.5,
+        "tier_cutoffs": [
+          1.0,
+          2.0,
+          6.0,
+          50.0
+        ]
+      },
+      "count_yolo": {
+        "n": 24,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "total_catch": {
+        "n": 24,
+        "mean": 0.54,
+        "median": 0.0,
+        "std": 1.19,
+        "min": 0.0,
+        "max": 5.0,
+        "p25": 0.0,
+        "p75": 0.25,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "qualitative": {
+        "n": 24,
+        "distribution": {
+          "好調": 11,
+          "渋い": 10,
+          "厳しい": 2,
+          "普通": 1
+        }
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-05-05",
+        "top_per_angler": 1.0,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "渋い",
+        "entry_title": "今日(5/5)のシーブルー"
+      },
+      {
+        "datetime": "2026-05-06",
+        "top_per_angler": 6.0,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "好調",
+        "entry_title": "今日(5/6)のシーブルー"
+      },
+      {
+        "datetime": "2026-05-07",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 3.0,
+        "qualitative": "渋い",
+        "entry_title": "今日(5/7)のシーブルー"
+      },
+      {
+        "datetime": "2026-05-10",
+        "top_per_angler": 1.0,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "好調",
+        "entry_title": "今日(5/10)のシーブルー"
+      },
+      {
+        "datetime": "2026-05-12",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "渋い",
+        "entry_title": "今日(5/12)のシーブルー"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 17.0,
+    "wind_speed_10m": 8.2,
+    "wind_direction_10m": 67.0,
+    "pressure_msl": 1020.2,
+    "precipitation": 0.0,
+    "cloud_cover": 28.0,
+    "wave_height": 0.34,
+    "wave_period": 6.2,
+    "swell_wave_height": 0.28,
+    "ocean_current_velocity": 0.9,
+    "ocean_current_direction": 169.0,
+    "sea_surface_temperature": 18.5,
+    "sea_level_height_msl": 0.55,
+    "moon_age": 27.9,
+    "moon_phase": "有明",
+    "tide_phase": "大潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "gemini",
+    "name": "gemini-2.5-flash",
+    "label_column": "top_per_angler"
+  }
+}

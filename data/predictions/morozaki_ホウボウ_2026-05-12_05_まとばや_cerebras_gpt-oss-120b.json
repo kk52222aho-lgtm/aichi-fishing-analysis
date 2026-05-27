@@ -1,0 +1,162 @@
+{
+  "site": "morozaki",
+  "site_name_ja": "師崎",
+  "species": "ホウボウ",
+  "date": "2026-05-12",
+  "hour": 5,
+  "boat": "まとばや",
+  "anglers": null,
+  "tackle": null,
+  "prediction": {
+    "predicted_top_per_angler": 6,
+    "tier": 4,
+    "tier_label": "好調",
+    "confidence": "medium",
+    "signal_used": "qualitative",
+    "reasoning": "本船の primary_signal は定性で、過去 71 回のうち『好調』が最も多く、最近の出船でも好調が目立れます。海面温度 17.5°C と潮位・潮流がホウボウの活性に適しており、過去の平均個人最大釣果 4.7 匹を上回る可能性が高いと判断しました。",
+    "key_factors": [
+      "SST 17.5°C がホウボウに適温",
+      "若潮で底が浅く餌が集中",
+      "風がやや強く表層が混ざり餌が活性化",
+      "過去の『好調』回数が多い"
+    ],
+    "risk_factors": [
+      "風速 15.6 m/s で波が不安定",
+      "潮流が南向きでホウボウの居場所が変化",
+      "過去に『渋い』や『厳しい』の実績もある"
+    ]
+  },
+  "boat_context": {
+    "n_trips_total": 71,
+    "primary_signal": "qualitative",
+    "secondary_signal": null,
+    "signals": {
+      "top_per_angler": {
+        "n": 10,
+        "mean": 4.7,
+        "median": 3.0,
+        "std": 3.52,
+        "min": 1.0,
+        "max": 12.0,
+        "p25": 2.25,
+        "p75": 6.25,
+        "tier_cutoffs": [
+          2.0,
+          3.0,
+          3.4,
+          7.6
+        ]
+      },
+      "count_yolo": {
+        "n": 71,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "total_catch": {
+        "n": 71,
+        "mean": 1.04,
+        "median": 0.0,
+        "std": 2.28,
+        "min": 0.0,
+        "max": 12.0,
+        "p25": 0.0,
+        "p75": 1.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "qualitative": {
+        "n": 66,
+        "distribution": {
+          "好調": 31,
+          "渋い": 15,
+          "普通": 10,
+          "絶好調": 6,
+          "厳しい": 4
+        }
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-04-29",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 5.0,
+        "qualitative": "好調",
+        "entry_title": "4月29日（水）今日もほぼタイラバ"
+      },
+      {
+        "datetime": "2026-05-01",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "普通",
+        "entry_title": "4月30日（金）今日はお休み"
+      },
+      {
+        "datetime": "2026-05-05",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 4.0,
+        "qualitative": "好調",
+        "entry_title": "5月5日（火）今日も青物＋午後便"
+      },
+      {
+        "datetime": "2026-05-10",
+        "top_per_angler": 3.0,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": NaN,
+        "entry_title": "5月10日（日）タイラバ便"
+      },
+      {
+        "datetime": "2026-05-11",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "普通",
+        "entry_title": "5月11日（月）ほぼタイラバ"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 16.6,
+    "wind_speed_10m": 15.6,
+    "wind_direction_10m": 97.0,
+    "pressure_msl": 1015.3,
+    "precipitation": 0.0,
+    "cloud_cover": 20.0,
+    "wave_height": 0.5,
+    "wave_period": 7.3,
+    "swell_wave_height": 0.44,
+    "ocean_current_velocity": 0.5,
+    "ocean_current_direction": 180.0,
+    "sea_surface_temperature": 17.5,
+    "sea_level_height_msl": 0.13,
+    "moon_age": 24.9,
+    "moon_phase": "有明",
+    "tide_phase": "若潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "cerebras",
+    "name": "gpt-oss-120b",
+    "label_column": "top_per_angler"
+  }
+}

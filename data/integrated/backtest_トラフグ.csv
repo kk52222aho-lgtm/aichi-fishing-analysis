@@ -1,0 +1,4 @@
+datetime,actual,predicted,residual,baseline_pred,baseline_residual,tier_pred,tier_pred_label,tier_actual,tier_actual_label,train_n
+2026-04-28 05:30:00,3.0,3.5,0.5,2.5,-0.5,5,大漁,3,普通,10
+2026-05-03 05:30:00,1.0,2.92,1.92,2.55,1.55,3,普通,1,厳しい,11
+2026-05-11 05:30:00,3.0,2.72,-0.28,2.42,-0.58,3,普通,3,普通,12

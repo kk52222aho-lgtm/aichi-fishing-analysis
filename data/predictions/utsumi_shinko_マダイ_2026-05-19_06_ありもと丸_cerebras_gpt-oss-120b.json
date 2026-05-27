@@ -1,0 +1,163 @@
+{
+  "site": "utsumi_shinko",
+  "site_name_ja": "内海新港",
+  "species": "マダイ",
+  "date": "2026-05-19",
+  "hour": 6,
+  "boat": "ありもと丸",
+  "anglers": 6,
+  "tackle": "タイラバ",
+  "prediction": {
+    "predicted_top_per_angler": 3,
+    "tier": 4,
+    "tier_label": "好調",
+    "confidence": "medium",
+    "signal_used": "qualitative",
+    "reasoning": "過去53回の定性評価で最も多いのは「好調」(22回)で、今回のコンディションも低風速・適度な潮流でマダイに適しているため、個人最大釣果は2〜3尾と見込める。最近2日間は「絶好調」だったが全体的頻度は低く、定性シグナルを主に根拠とした中程度の予測となる。",
+    "key_factors": [
+      "低風速 (2.6 m/s) でルアー操作が安定",
+      "潮流方向 (236°) と速度 (0.6 m/s) がマダイの好む流れ",
+      "海面温度 18.8°C がマダイの活性期",
+      "直近2日間の「絶好調」実績"
+    ],
+    "risk_factors": [
+      "曇りが100%で光の変化が少なく餌魚の活性が低下",
+      "最近の「厳しい」日が続いたこと",
+      "潮位が中潮で大きな潮の変化が少ない"
+    ]
+  },
+  "boat_context": {
+    "n_trips_total": 53,
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch",
+    "signals": {
+      "top_per_angler": {
+        "n": 6,
+        "mean": 2.17,
+        "median": 1.5,
+        "std": 1.46,
+        "min": 1.0,
+        "max": 5.0,
+        "p25": 1.0,
+        "p75": 2.75,
+        "tier_cutoffs": [
+          1.0,
+          1.0,
+          2.0,
+          3.0
+        ]
+      },
+      "count_yolo": {
+        "n": 53,
+        "mean": 0.06,
+        "median": 0.0,
+        "std": 0.41,
+        "min": 0.0,
+        "max": 3.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "total_catch": {
+        "n": 53,
+        "mean": 0.09,
+        "median": 0.0,
+        "std": 0.29,
+        "min": 0.0,
+        "max": 1.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "tier_cutoffs": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "qualitative": {
+        "n": 50,
+        "distribution": {
+          "好調": 22,
+          "普通": 9,
+          "渋い": 8,
+          "厳しい": 5,
+          "ボウズ": 3,
+          "絶好調": 3
+        }
+      }
+    },
+    "by_month_of_primary": {},
+    "recent_5_trips": [
+      {
+        "datetime": "2026-05-07",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "絶好調",
+        "entry_title": "5月7日(木)　マダイ好調でした⤴️"
+      },
+      {
+        "datetime": "2026-05-08",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "絶好調",
+        "entry_title": "5月8日(金)　タイラバ絶好調です‼️"
+      },
+      {
+        "datetime": "2026-05-10",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 0.0,
+        "qualitative": "渋い",
+        "entry_title": "5月10日(日)　今日はいろいろと～‼️"
+      },
+      {
+        "datetime": "2026-05-11",
+        "top_per_angler": NaN,
+        "count_yolo": 0.0,
+        "total_catch": 1.0,
+        "qualitative": "厳しい",
+        "entry_title": "5月11日(月)　トラフグ元気でした！"
+      },
+      {
+        "datetime": "2026-05-15",
+        "top_per_angler": NaN,
+        "count_yolo": 3.0,
+        "total_catch": 0.0,
+        "qualitative": "厳しい",
+        "entry_title": "5月15日(金)　厳しいなかマダイ全員キャッチ"
+      }
+    ]
+  },
+  "conditions": {
+    "temperature_2m": 16.8,
+    "wind_speed_10m": 2.6,
+    "wind_direction_10m": 124.0,
+    "pressure_msl": 1019.3,
+    "precipitation": 0.0,
+    "cloud_cover": 100.0,
+    "wave_height": 0.2,
+    "wave_period": 7.3,
+    "swell_wave_height": 0.14,
+    "ocean_current_velocity": 0.6,
+    "ocean_current_direction": 236.0,
+    "sea_surface_temperature": 18.8,
+    "sea_level_height_msl": 0.83,
+    "moon_age": 2.4,
+    "moon_phase": "三日月",
+    "tide_phase": "中潮",
+    "is_morning_mazume": 0,
+    "is_evening_mazume": 0
+  },
+  "model": {
+    "provider": "cerebras",
+    "name": "gpt-oss-120b",
+    "label_column": "top_per_angler"
+  }
+}

@@ -1,0 +1,9 @@
+datetime,site,species,count,boat,anglers,target_species,tackle,departure_hour,total_weight_g,avg_length_cm,angler,notes,image_path
+2026-05-03T05:30:00+09:00,shinojima,アジ,12,篠島丸,8,アジ,サビキ,5,2400,18.5,kk522,朝マズメ,images/2026-05-03_aji.jpg
+2026-05-03T15:00:00+09:00,shinojima,メバル,3,篠島丸,8,アジ,サビキ,5,420,15.0,kk522,副次,images/2026-05-03_mebaru.jpg
+2026-05-04T06:00:00+09:00,morozaki,キス,8,師崎渡船,6,キス,投げ,6,640,16.0,kk522,投げ釣り,images/2026-05-04_kisu.jpg
+2026-05-04T17:30:00+09:00,morozaki,セイゴ,2,師崎渡船,6,キス,投げ,6,800,28.0,kk522,夕マズメ,images/2026-05-04_seigo.jpg
+2026-05-05T05:45:00+09:00,irago,カサゴ,5,伊良湖丸,10,カサゴ,胴突き,5,750,18.0,kk522,根魚,images/2026-05-05_kasago.jpg
+2026-05-05T16:00:00+09:00,irago,ハマチ,1,伊良湖丸,10,カサゴ,ジギング,5,1800,45.0,kk522,午後の流し,images/2026-05-05_hamachi.jpg
+2026-05-06T07:00:00+09:00,mikawa_bay,クロダイ,1,蒲郡丸,4,クロダイ,落とし込み,7,1600,38.0,kk522,落とし込み,images/2026-05-06_kurodai.jpg
+2026-05-07T05:00:00+09:00,chita_tip,アオリイカ,2,知多丸,5,アオリイカ,エギング,5,800,22.0,kk522,エギング,images/2026-05-07_aori.jpg
