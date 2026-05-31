@@ -1,30 +1,33 @@
 """Step 3 改善 (temperature=0.0 + 直近 trip anchor + recent-3 median fallback) を
 LLM backtest で実測し、旧結果と比較。
 
+【課金は発生しない】無料枠プロバイダのみ:
+    - cerebras (gpt-oss-120b)        : 無料 tier
+    - groq     (llama-3.3-70b-versatile): 無料 14400 req/日
+Gemini は無料枠 20 req/日と狭く、超過時課金リスクがあるため除外。
+
 【Colab セットアップ】
     # 1. Drive マウント + API キー登録
     from google.colab import drive, userdata
     drive.mount('/content/drive', force_remount=False)
 
-    # 2. プロジェクトを clone or pull（既に Drive にあれば skip）
+    # 2. プロジェクトに移動
     import os
     PROJ = '/content/drive/MyDrive/aichi-fishing-analysis'
     os.chdir(PROJ)
     !git pull
 
     # 3. 依存
-    !pip install -q lightgbm openai google-genai
+    !pip install -q lightgbm openai
 
     # 4. このスクリプトを実行
     !python notebooks/run_llm_backtest_step3.py
 
 API キーは Colab userdata に下記名前で登録:
-    CEREBRAS_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY), GROQ_API_KEY
+    CEREBRAS_API_KEY, GROQ_API_KEY
 
-【比較ジョブ】
-旧 LLM backtest と同じ (provider, model, species) の組合せを再実行:
+【比較ジョブ】(課金プロバイダは除外)
     - マダイ × cerebras/gpt-oss-120b   (旧 MAE=16.13, +23.9% vs baseline)
-    - イサキ × gemini/gemini-2.5-flash (旧 MAE=6.44,  +13.7%)
     - イサキ × groq/llama-3.3-70b      (旧 MAE=6.40,  +14.3%)
     - ホウボウ × cerebras/gpt-oss-120b (旧 MAE=2.80,  -26.4% ← 改善余地大)
 
@@ -56,8 +59,8 @@ from src import config
 # ------------------------------------------------------------
 JOBS = [
     # (species, site,         boat,            provider,   model)
+    # 無料枠プロバイダのみ。gemini は除外（無料 20 req/日で超過リスク）
     ("マダイ",  "morozaki",   "まとばや",      "cerebras", "gpt-oss-120b"),
-    ("イサキ",  "irago",      "maruman2010",   "gemini",   "gemini-2.5-flash"),
     ("イサキ",  "irago",      "maruman2010",   "groq",     "llama-3.3-70b-versatile"),
     ("ホウボウ", "morozaki",   "まとばや",      "cerebras", "gpt-oss-120b"),
 ]
@@ -65,7 +68,6 @@ JOBS = [
 # 旧 CSV (commit 8462e98 で確認した値) - tuple: (mae, baseline_mae, vs_base_pct, tier_exact, bias)
 OLD_RESULTS = {
     ("マダイ",  "cerebras"): (16.13, 21.20,  0.239, 0.17, -4.83),
-    ("イサキ",  "gemini"):   ( 6.44,  7.46,  0.137, 0.40, -3.24),
     ("イサキ",  "groq"):     ( 6.40,  7.46,  0.143, 0.10, -2.20),
     ("ホウボウ", "cerebras"): ( 2.80,  2.22, -0.264, 0.20, +1.40),
 }
@@ -121,11 +123,13 @@ def main():
             print(f"  旧 CSV を退避: {backup.name}")
 
         # 実行（既存ファイル名で上書き保存される）
+        # use_cache=False で旧プロンプト時の予測キャッシュを無視 → Step 3 改善を反映
         try:
             summary = bt.run_llm_for_species(
                 species, site=site, boat=boat,
                 provider=provider, model=model,
                 min_train=5, save_csv=True, save_plots=False,
+                use_cache=False,
             )
             new_csv = Path(summary["csv_path"])
             # _step3 サフィックスにリネーム

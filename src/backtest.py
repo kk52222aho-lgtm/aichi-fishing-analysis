@@ -196,6 +196,7 @@ def walk_forward_llm(
     provider: str = "gemini",
     model: Optional[str] = None,
     sleep_sec: float = 0.5,
+    use_cache: bool = True,
 ) -> pd.DataFrame:
     """LLM 推論で walk-forward backtest。
 
@@ -257,7 +258,7 @@ def walk_forward_llm(
                 tackle=test_row.get("tackle") if pd.notna(test_row.get("tackle")) else None,
                 provider=provider,
                 model=model,
-                use_cache=True,
+                use_cache=use_cache,
                 catches_path=tmp_csv,
             )
             yhat = float(res["prediction"].get("predicted_top_per_angler", 0.0))
@@ -318,11 +319,12 @@ def run_llm_for_species(
     model: Optional[str] = None,
     save_csv: bool = True,
     save_plots: bool = True,
+    use_cache: bool = True,
 ) -> dict:
     """LLM backtest + 集計 + プロット出力 をまとめて。"""
     result = walk_forward_llm(
         species, site=site, boat=boat, min_train=min_train,
-        provider=provider, model=model,
+        provider=provider, model=model, use_cache=use_cache,
     )
     summary = summarize(result, species)
     summary["predictor"] = "llm"
