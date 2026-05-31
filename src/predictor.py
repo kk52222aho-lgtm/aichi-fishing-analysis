@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -110,6 +111,17 @@ def train(
             f"学習データ不足: species={species}, label={label_column} で {len(sub)} 行 "
             f"(最低 {min_samples} 行必要)"
         )
+    if len(sub) < 50:
+        warnings.warn(
+            f"データ数が少ないため精度が不安定になる可能性があります: "
+            f"species={species}, n={len(sub)} (推奨 50 行以上)",
+            stacklevel=2,
+        )
+
+    # 時系列順にソート（古い→新しい）— validation を未来側に固定するため
+    if "datetime" in sub.columns:
+        sub["datetime"] = pd.to_datetime(sub["datetime"], errors="coerce", utc=True)
+        sub = sub.sort_values("datetime", kind="stable").reset_index(drop=True)
 
     X = features.build_features(sub)
     y = sub[label_column].astype(float).values
