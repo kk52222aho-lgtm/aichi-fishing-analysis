@@ -1,0 +1,5 @@
+datetime,actual,predicted,residual,baseline_pred,baseline_residual,tier_pred,tier_pred_label,tier_actual,tier_actual_label,train_n
+2025-12-30 05:30:00,5.0,3.2,-1.8,3.2,-1.8,3,普通,4,好調,5
+2026-01-30 05:30:00,5.0,2.03,-2.97,3.5,-1.5,2,やや渋い,3,普通,6
+2026-03-03 05:30:00,8.0,5.28,-2.72,3.71,-4.29,5,大漁,5,大漁,7
+2026-03-20 05:30:00,1.0,4.09,3.09,4.25,3.25,2,やや渋い,1,厳しい,8

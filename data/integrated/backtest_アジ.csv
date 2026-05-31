@@ -1,0 +1,2 @@
+datetime,actual,predicted,residual,baseline_pred,baseline_residual,tier_pred,tier_pred_label,tier_actual,tier_actual_label,train_n
+2026-05-03 05:30:00,3.0,7.0,4.0,7.0,4.0,4,好調,2,やや渋い,5

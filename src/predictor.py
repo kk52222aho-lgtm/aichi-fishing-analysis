@@ -36,10 +36,12 @@ TIER_LABELS: tuple[str, ...] = ("厳しい", "やや渋い", "普通", "好調",
 def _make_estimator(n_train: Optional[int] = None):
     """学習サンプル数に応じてモデル容量を調整。
 
-    n_train が None または >= 50 ならフル設定。小データ (<50) は num_leaves と
+    n_train が None または >= 20 ならフル設定。極小データ (<20) のみ num_leaves と
     n_estimators を縮め、reg_alpha/lambda を加えて過学習を抑制。
+    閾値 20 の根拠: 11 魚種 backtest で n_train>=20 はマダイなど分布が広い魚種が
+    多く、容量不足が悪化要因になるため。
     """
-    small = n_train is not None and n_train < 50
+    small = n_train is not None and n_train < 20
     try:
         from lightgbm import LGBMRegressor
         if small:
