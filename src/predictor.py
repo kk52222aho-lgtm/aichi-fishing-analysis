@@ -33,15 +33,32 @@ DEFAULT_LABEL_COLUMN = "top_per_angler"
 TIER_LABELS: tuple[str, ...] = ("厳しい", "やや渋い", "普通", "好調", "大漁")
 
 
-def _make_estimator():
+def _make_estimator(n_train: Optional[int] = None):
+    """学習サンプル数に応じてモデル容量を調整。
+
+    n_train が None または >= 50 ならフル設定。小データ (<50) は num_leaves と
+    n_estimators を縮め、reg_alpha/lambda を加えて過学習を抑制。
+    """
+    small = n_train is not None and n_train < 50
     try:
         from lightgbm import LGBMRegressor
+        if small:
+            return LGBMRegressor(
+                n_estimators=120, learning_rate=0.05, num_leaves=8,
+                min_child_samples=3, reg_alpha=0.1, reg_lambda=0.1,
+                random_state=42, verbose=-1,
+            )
         return LGBMRegressor(
             n_estimators=400, learning_rate=0.05, num_leaves=31,
             min_child_samples=5, random_state=42, verbose=-1,
         )
     except ImportError:
         from sklearn.ensemble import HistGradientBoostingRegressor
+        if small:
+            return HistGradientBoostingRegressor(
+                max_iter=120, learning_rate=0.05, max_depth=4,
+                min_samples_leaf=3, l2_regularization=0.1, random_state=42,
+            )
         return HistGradientBoostingRegressor(
             max_iter=400, learning_rate=0.05, random_state=42,
         )
@@ -123,15 +140,24 @@ def train(
         sub["datetime"] = pd.to_datetime(sub["datetime"], errors="coerce", utc=True)
         sub = sub.sort_values("datetime", kind="stable").reset_index(drop=True)
 
-    X = features.build_features(sub)
     y = sub[label_column].astype(float).values
-
     n = len(sub)
     n_test = max(1, n // 5)
-    X_train, X_test = X.iloc[:-n_test], X.iloc[-n_test:]
+
+    # split を先に取って features.build_features() を train/test 別個に呼ぶ
+    # （build_features 内の fillna(median) で test 行の値が train に漏れるのを防ぐ）
+    sub_train = sub.iloc[:-n_test].reset_index(drop=True)
+    sub_test = sub.iloc[-n_test:].reset_index(drop=True)
+    X_train = features.build_features(sub_train)
+    X_test = features.build_features(sub_test)
+    # test に train 側の列が無ければ 0、余分な列は捨てる
+    for c in X_train.columns:
+        if c not in X_test.columns:
+            X_test[c] = 0.0
+    X_test = X_test[X_train.columns]
     y_train, y_test = y[:-n_test], y[-n_test:]
 
-    model = _make_estimator()
+    model = _make_estimator(n_train=len(X_train))
     model.fit(X_train, y_train)
     pred = model.predict(X_test)
     mae = float(np.mean(np.abs(pred - y_test)))
@@ -140,7 +166,7 @@ def train(
 
     bundle = {
         "model": model,
-        "feature_columns": list(X.columns),
+        "feature_columns": list(X_train.columns),
         "species": species,
         "label_column": label_column,
         "trained_at": datetime.now().isoformat(),

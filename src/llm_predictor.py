@@ -355,6 +355,29 @@ def _build_prompt(
     else:
         tier_basis_hint = "過去データ希薄。LLM 事前知識と当日コンディションから推定"
 
+    # ── 直近 trip を予測のアンカーとして強調 (few-shot 効果)
+    anchor_block = ""
+    recent = stats.get("recent_5_trips") or []
+    if recent and primary in _NUMERIC_SIGNALS:
+        last = recent[-min(3, len(recent)):]
+        anchor_lines = []
+        for r in last:
+            v = r.get(primary)
+            if v is not None and not (isinstance(v, float) and np.isnan(v)):
+                anchor_lines.append(f"  - {r.get('datetime', '?')}: {primary}={v}")
+        if anchor_lines:
+            recent_vals = [r.get(primary) for r in last if r.get(primary) is not None]
+            try:
+                anchor_median = float(np.median([float(v) for v in recent_vals]))
+                anchor_block = (
+                    "\n【直近 trip アンカー（予測のベースライン）】\n"
+                    + "\n".join(anchor_lines)
+                    + f"\n  → 直近 median = {anchor_median:.1f} 尾。"
+                    + "コンディションが平常なら ±30% 以内に収め、極端な気象/潮汐変化のみ大きく外す。"
+                )
+            except Exception:
+                pass
+
     return f"""あなたは愛知近海（伊勢湾・三河湾・遠州灘）の釣り船を熟知した予測アシスタントです。
 日本語で、釣り船の船長や常連客が頷くような知見を交えて回答してください。
 
@@ -371,6 +394,7 @@ def _build_prompt(
 {_SIGNAL_DESCRIPTION}
 【今日のコンディション（出船時付近）】
 {json.dumps(conditions, ensure_ascii=False, indent=2, default=str)}
+{anchor_block}
 
 【予測してほしいこと】
 本日この船で釣れる {species} の **竿頭 (個人最大釣果, 尾)** を整数で予測してください。
@@ -405,7 +429,7 @@ def _call_gemini(
     client = genai.Client(api_key=api_key)
     cfg_kwargs: dict[str, Any] = {
         "response_mime_type": "application/json",
-        "temperature": 0.2,
+        "temperature": 0.0,
     }
     if schema is not None:
         cfg_kwargs["response_schema"] = schema
@@ -428,7 +452,7 @@ def _call_groq(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.2,
+        temperature=0.0,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -446,7 +470,7 @@ def _call_cerebras(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.2,
+        temperature=0.0,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -465,7 +489,7 @@ def _call_ollama(
             "prompt": prompt,
             "format": "json",
             "stream": False,
-            "options": {"temperature": 0.2},
+            "options": {"temperature": 0.0},
         },
         timeout=120,
     )

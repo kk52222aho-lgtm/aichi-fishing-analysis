@@ -87,7 +87,7 @@ def walk_forward(
                 X_test[c] = 0.0
         X_test = X_test[X_train.columns]
 
-        model = predictor._make_estimator()
+        model = predictor._make_estimator(n_train=len(X_train))
         model.fit(X_train, y_train)
         yhat = float(model.predict(X_test)[0])
         yhat = max(0.0, yhat)
@@ -266,10 +266,17 @@ def walk_forward_llm(
             reasoning = res["prediction"].get("reasoning", "")
         except Exception as e:
             print(f"  ⚠️ LLM error trip {i}: {e}")
-            yhat = float(past[past["species"] == species]["top_per_angler"].mean() or 0)
+            # fallback: 過去全 trip mean ではなく直近 3 trip の median（変化に追従）
+            past_sp = past[past["species"] == species]["top_per_angler"].dropna().astype(float)
+            if len(past_sp) >= 3:
+                yhat = float(past_sp.tail(3).median())
+            elif len(past_sp) > 0:
+                yhat = float(past_sp.median())
+            else:
+                yhat = 0.0
             tier_pred = 3
             tier_pred_label = "普通"
-            reasoning = f"(LLM error: {e})"
+            reasoning = f"(LLM error: {e}; fallback=recent3 median)"
 
         # tier_actual は過去 trip 分布で判定
         past_vals = past[past["species"] == species]["top_per_angler"].dropna().astype(float).values
