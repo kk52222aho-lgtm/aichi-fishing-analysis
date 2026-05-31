@@ -355,7 +355,9 @@ def _build_prompt(
     else:
         tier_basis_hint = "過去データ希薄。LLM 事前知識と当日コンディションから推定"
 
-    # ── 直近 trip を予測のアンカーとして強調 (few-shot 効果)
+    # ── 直近 trip を予測の参考情報として提示 (制約ではなく材料)
+    # 注意: ±30% などの厳しい制約は wide-distribution 魚種 (マダイ等) で
+    # 大漁日を過小予測する原因になる。あくまで「参考」「天井/床」として渡す。
     anchor_block = ""
     recent = stats.get("recent_5_trips") or []
     if recent and primary in _NUMERIC_SIGNALS:
@@ -368,12 +370,17 @@ def _build_prompt(
         if anchor_lines:
             recent_vals = [r.get(primary) for r in last if r.get(primary) is not None]
             try:
-                anchor_median = float(np.median([float(v) for v in recent_vals]))
+                recent_floats = [float(v) for v in recent_vals]
+                anchor_median = float(np.median(recent_floats))
+                # 過去最大値（天井把握用、wide-distribution 魚種で過小予測を防ぐ）
+                past_max = stats.get("signals", {}).get(primary, {}).get("max")
+                past_max_str = f"、過去最大 = {past_max:.0f} 尾" if past_max else ""
                 anchor_block = (
-                    "\n【直近 trip アンカー（予測のベースライン）】\n"
+                    "\n【直近 trip 参考】\n"
                     + "\n".join(anchor_lines)
-                    + f"\n  → 直近 median = {anchor_median:.1f} 尾。"
-                    + "コンディションが平常なら ±30% 以内に収め、極端な気象/潮汐変化のみ大きく外す。"
+                    + f"\n  → 直近 median = {anchor_median:.1f} 尾{past_max_str}。"
+                    + "あくまで参考値。大潮・朝マヅメ・好シーズン入り等の好条件、"
+                    + "また過去最大級のコンディションでは median を大きく超えて予測してよい。"
                 )
             except Exception:
                 pass
