@@ -101,8 +101,12 @@ def boat_to_blog_id(boat: str) -> Optional[str]:
 
 # ── LLM プロバイダ選択 ────────────────────────────────────
 def available_providers() -> list[str]:
-    """API キーが解決できる provider 一覧（cerebras > groq > gemini > ollama の優先順）。"""
-    priority = ["cerebras", "groq", "gemini", "ollama"]
+    """API キーが解決できる provider 一覧。
+
+    優先順: cerebras (無料) > groq (無料) > ollama (ローカル無料) > gemini (課金リスク)。
+    無料枠を使い切るまで gemini にフォールバックしないため意図的にこの順序。
+    """
+    priority = ["cerebras", "groq", "ollama", "gemini"]
     out = []
     for p in priority:
         if p == "ollama":

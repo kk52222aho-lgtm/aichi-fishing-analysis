@@ -62,12 +62,100 @@ print("📜 ログ:    !tail -f /content/streamlit.log")
 ### ローカル Windows で起動
 
 ```powershell
-cd I:\マイドライブ\aichi-fishing-analysis
-pip install streamlit plotly
-$env:CEREBRAS_API_KEY = "your_key"
-$env:GROQ_API_KEY     = "your_key"
+cd C:\dev\aichi-fishing-analysis
+pip install streamlit plotly fastapi "uvicorn[standard]" lightgbm openai
+$env:CEREBRAS_API_KEY = "your_key"   # 無料 https://cloud.cerebras.ai/
+$env:GROQ_API_KEY     = "your_key"   # 無料 https://console.groq.com/keys
 streamlit run app\streamlit_app.py
 ```
+
+## 本番デプロイ
+
+### バックテスト精度（Step 3.1 LLM が default）
+
+| 魚種 | 統計 (LightGBM) MAE | LLM (Step 3.1) MAE | 採用 |
+|------|--------|--------|------|
+| マダイ   | 26.00 | **16.11** | LLM |
+| イサキ   | 7.09  | **6.20**  | LLM |
+| ホウボウ | **2.29** | 2.27 | tie (LLM 推奨 — reasoning 付き) |
+
+統計モデルと LLM は **`/predict?engine=auto`** で LLM 主軸＋失敗時自動 fallback。
+明示指定は `engine=llm` または `engine=statistical`。
+
+### FastAPI 起動（Streamlit と別プロセス）
+
+```powershell
+# 必要なら追加
+pip install fastapi "uvicorn[standard]"
+
+# ローカル
+$env:CEREBRAS_API_KEY = "your_key"
+uvicorn api.server:app --host 0.0.0.0 --port 8000
+
+# 動作確認
+curl "http://localhost:8000/providers"
+curl "http://localhost:8000/predict?site=morozaki&species=マダイ&date=2026-06-01&hour=5&boat=まとばや&engine=auto"
+```
+
+### Colab で FastAPI + Streamlit 同時起動 + ngrok 公開
+
+```python
+from google.colab import drive, userdata
+drive.mount('/content/drive', force_remount=False)
+
+import os
+os.chdir('/content/drive/MyDrive/aichi-fishing-analysis')
+
+# 1. 依存（無料枠 LLM のみ。gemini は外す）
+!pip install -q streamlit plotly fastapi "uvicorn[standard]" lightgbm openai pyngrok
+
+# 2. API キー（無料枠のみ。GEMINI は意図的に外す）
+for k in ('CEREBRAS_API_KEY', 'GROQ_API_KEY', 'NGROK_AUTH_TOKEN'):
+    try: os.environ[k] = userdata.get(k)
+    except Exception: pass
+
+# 3. ngrok 設定
+from pyngrok import ngrok
+ngrok.set_auth_token(os.environ['NGROK_AUTH_TOKEN'])
+for t in ngrok.get_tunnels():
+    ngrok.disconnect(t.public_url)
+
+# 4. FastAPI を 8000 で起動
+get_ipython().system_raw(
+    'uvicorn api.server:app --host 0.0.0.0 --port 8000 '
+    '> /content/api.log 2>&1 &'
+)
+
+# 5. Streamlit を 8501 で起動
+get_ipython().system_raw(
+    'streamlit run app/streamlit_app.py '
+    '--server.port 8501 --server.headless true '
+    '--server.fileWatcherType none > /content/streamlit.log 2>&1 &'
+)
+
+import time; time.sleep(6)
+
+# 6. ngrok で公開（無料枠は同時 1 tunnel まで、Streamlit を優先公開）
+ui_url = ngrok.connect(8501).public_url
+print('🎣 Streamlit UI:', ui_url)
+print('📋 API ログ:  !tail -f /content/api.log')
+print('📋 UI ログ:   !tail -f /content/streamlit.log')
+```
+
+### 釣果フィードバック（実データ収集）
+
+- **自動**: Streamlit ページ 4「最新エントリ取り込み」が船宿ブログを LLM で読んで catches.csv に追記
+- **手動 API**: `POST /catches` — JSON で 1 trip 追加
+  ```bash
+  curl -X POST http://localhost:8000/catches \
+      -H "Content-Type: application/json" \
+      -d '{"datetime":"2026-06-01T05:00:00+09:00","site":"shinojima","species":"アジ","count":12,"boat":"篠島丸","anglers":8,"tackle":"サビキ"}'
+  ```
+- データが増えたら `python -m src.data_integrator --catches data/fishing_logs/catches.csv` で integrated.parquet 更新
+
+### LLM 課金リスク回避
+
+`available_providers()` は **cerebras → groq → ollama → gemini** の優先順。前 3 つは無料、gemini は最後に落ちる。Gemini キーを設定しない限り課金は発生しません。Backtest スクリプト [notebooks/run_llm_backtest_step3.py](notebooks/run_llm_backtest_step3.py) も無料枠のみ使用。
 
 ## ディレクトリ構成
 
