@@ -275,6 +275,103 @@ def compute_boat_stats(
     return stats
 
 
+def find_similar_past_trips(
+    species: str,
+    boat: Optional[str],
+    target_dt: pd.Timestamp,
+    target_conditions: dict[str, Any],
+    catches_path: Optional[Path | str] = None,
+    integrated_path: Optional[Path | str] = None,
+    label_column: str = "top_per_angler",
+    n_top: int = 3,
+) -> dict[str, Any]:
+    """同船宿×同魚種で、同月±1 + 同 tide_phase の過去 trip の最大/上位を返す。
+
+    マダイ等 wide-distribution 魚種で LLM が median 寄り予測になるのを抑制するため、
+    『同条件下では過去 N 尾出ている』という事実を prompt に注入する材料を提供する。
+
+    データソース優先順:
+        1. integrated_path (default: data/integrated/integrated.parquet) — backtest と
+           同じ「真の」ラベル分布が入っている
+        2. catches_path - integrated が無い時のフォールバック
+
+    Args:
+        target_dt:  予測対象日時（これより前の trip のみ参照、未来漏洩防止）
+        target_conditions: _readable_conditions() の出力。tide_phase をフィルタに使う
+    """
+    ipath = Path(integrated_path) if integrated_path else config.INTEGRATED_DIR / "integrated.parquet"
+    if ipath.exists():
+        df = pd.read_parquet(ipath) if ipath.suffix == ".parquet" else pd.read_csv(ipath)
+    else:
+        csv = Path(catches_path) if catches_path else config.FISHING_DIR / "catches.csv"
+        if not csv.exists():
+            return {}
+        df = pd.read_csv(csv)
+    if "datetime" not in df.columns or label_column not in df.columns:
+        return {}
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    # tz を剥がして比較互換にする（catches.csv は +09:00 付き）
+    if getattr(df["datetime"].dt, "tz", None) is not None:
+        df["datetime"] = df["datetime"].dt.tz_localize(None)
+    target_dt_naive = pd.Timestamp(target_dt)
+    if getattr(target_dt_naive, "tz", None) is not None:
+        target_dt_naive = target_dt_naive.tz_localize(None)
+    # 過去のみ（target 自身は含めない）
+    df = df[df["datetime"] < target_dt_naive]
+    df = df[df["species"] == species]
+    df = df.dropna(subset=[label_column])
+    if df.empty:
+        return {}
+
+    target_month = int(target_dt.month)
+    months = {((target_month - 2) % 12) + 1, target_month, (target_month % 12) + 1}
+    df["_month"] = df["datetime"].dt.month
+    df_window = df[df["_month"].isin(months)].copy()
+    if df_window.empty:
+        return {}
+
+    # 1) boat-filtered 試行（厳しい条件）。十分な n が取れたら採用
+    target_tide = target_conditions.get("tide_phase")
+    scope = "all_boats"
+    df_strict = df_window
+    if boat and "boat" in df_window.columns:
+        df_boat = df_window[df_window["boat"] == boat]
+        if len(df_boat) >= 3:
+            df_strict = df_boat
+            scope = "same_boat"
+
+    # 2) tide_phase で更に絞り込み（その結果が 3 件未満なら剥がす）
+    criteria = {"month_window": f"{target_month}±1", "tide_phase": None, "scope": scope}
+    if target_tide and "tide_phase" in df_strict.columns:
+        df_tide = df_strict[df_strict["tide_phase"] == target_tide]
+        if len(df_tide) >= 3:
+            df_strict = df_tide
+            criteria["tide_phase"] = target_tide
+
+    vals = pd.to_numeric(df_strict[label_column], errors="coerce").dropna().astype(float)
+    if len(vals) < 3:
+        return {}
+
+    top_trips_df = df_strict.sort_values(label_column, ascending=False).head(n_top)
+    top_trips = []
+    for r in top_trips_df.to_dict("records"):
+        top_trips.append({
+            "date": str(r.get("datetime", ""))[:10],
+            "boat": r.get("boat"),
+            label_column: r.get(label_column),
+            "tide_phase": r.get("tide_phase"),
+        })
+
+    return {
+        "n_similar": int(len(vals)),
+        "criteria": criteria,
+        "max": float(vals.max()),
+        "median": float(vals.median()),
+        "p75": float(vals.quantile(0.75)),
+        "top_trips": top_trips,
+    }
+
+
 def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
     r = row.iloc[0].to_dict()
     out: dict[str, Any] = {}
@@ -385,6 +482,31 @@ def _build_prompt(
             except Exception:
                 pass
 
+    # ── 類似日ブロック（Step 3.2: 同月±1 + 同 tide_phase での過去実績）
+    # マダイ等 wide-distribution 魚種で、median 寄り予測を打破するための材料
+    similar_block = ""
+    similar = stats.get("similar_past_trips")
+    if similar and similar.get("n_similar", 0) >= 3:
+        crit = similar.get("criteria", {})
+        scope = crit.get("scope", "all_boats")
+        scope_str = "同船宿" if scope == "same_boat" else "全船宿"
+        crit_str = f"{scope_str} × 同月±1月"
+        if crit.get("tide_phase"):
+            crit_str += f" × {crit['tide_phase']}"
+        top_lines = []
+        for t in similar.get("top_trips", []):
+            v = t.get("top_per_angler", "?")
+            tide = t.get("tide_phase") or "?"
+            boat_str = f" @{t.get('boat','?')}" if scope == "all_boats" else ""
+            top_lines.append(f"    {t.get('date','?')}{boat_str}: {v} 尾 ({tide})")
+        similar_block = (
+            f"\n【類似日 ({crit_str}) の過去実績】 n={similar['n_similar']}\n"
+            f"  過去最大: {similar['max']:.0f} 尾、p75: {similar['p75']:.1f}、median: {similar['median']:.1f}\n"
+            f"  上位 trip:\n" + "\n".join(top_lines)
+            + f"\n  → 類似コンディション下では過去 {similar['max']:.0f} 尾出る日があった。"
+            + "今日の海況・潮汐がその時に近ければ、median ではなく上位寄りも合理的予測。"
+        )
+
     return f"""あなたは愛知近海（伊勢湾・三河湾・遠州灘）の釣り船を熟知した予測アシスタントです。
 日本語で、釣り船の船長や常連客が頷くような知見を交えて回答してください。
 
@@ -401,7 +523,7 @@ def _build_prompt(
 {_SIGNAL_DESCRIPTION}
 【今日のコンディション（出船時付近）】
 {json.dumps(conditions, ensure_ascii=False, indent=2, default=str)}
-{anchor_block}
+{anchor_block}{similar_block}
 
 【予測してほしいこと】
 本日この船で釣れる {species} の **竿頭 (個人最大釣果, 尾)** を整数で予測してください。
@@ -617,6 +739,15 @@ def predict_with_llm(
         departure_hour=departure_hour or hour,
     )
     conditions = _readable_conditions(row)
+
+    # 2.5) 類似コンディション過去 trip lookup（Step 3.2: wide-distribution 魚種の
+    #      under-prediction 改善用）
+    similar = find_similar_past_trips(
+        species=species, boat=boat, target_dt=target_dt,
+        target_conditions=conditions, catches_path=catches_path,
+    )
+    if similar:
+        stats["similar_past_trips"] = similar
 
     # 3) プロンプト生成
     prompt = _build_prompt(

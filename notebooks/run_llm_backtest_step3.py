@@ -31,7 +31,7 @@ API キーは Colab userdata に下記名前で登録:
     - イサキ × groq/llama-3.3-70b      (旧 MAE=6.40,  +14.3%)
     - ホウボウ × cerebras/gpt-oss-120b (旧 MAE=2.80,  -26.4% ← 改善余地大)
 
-新 CSV は `backtest_llm_{provider}_{species}_step3.csv` に保存し、旧 CSV を
+新 CSV は `backtest_llm_{provider}_{species}_{STEP}.csv` に保存し、旧 CSV を
 壊さない。最後に comparison table を出力。
 """
 from __future__ import annotations
@@ -53,6 +53,14 @@ import pandas as pd
 
 from src import backtest as bt
 from src import config
+
+# ------------------------------------------------------------
+# 試行バージョン識別子 — 新規実装の度にバンプして過去結果を上書きしない
+#   step3   : temperature=0.0 + anchor block (±30% hard constraint)
+#   step3_1 : anchor を緩和（参考枠）+ past_max 追加
+#   step3_2 : 類似日 (同月±1 + 同 tide_phase) の過去最大を prompt に注入
+# ------------------------------------------------------------
+STEP = "step3_2"
 
 # ------------------------------------------------------------
 # 比較対象（旧 backtest と同条件）
@@ -133,7 +141,7 @@ def main():
             )
             new_csv = Path(summary["csv_path"])
             # _step3 サフィックスにリネーム
-            new_path = new_csv.parent / new_csv.name.replace(".csv", "_step3.csv")
+            new_path = new_csv.parent / new_csv.name.replace(".csv", f"_{STEP}.csv")
             shutil.move(new_csv, new_path)
             # バックアップを元の場所に戻す（旧 CSV を保持）
             if backup:
@@ -168,10 +176,10 @@ def main():
             })
 
     # 比較表
-    out_path = ROOT / "_llm_step3_comparison.csv"
+    out_path = ROOT / f"_llm_{STEP}_comparison.csv"
     pd.DataFrame(results).to_csv(out_path, index=False)
     print("\n" + "="*70)
-    print("Comparison Table (saved to _llm_step3_comparison.csv)")
+    print(f"Comparison Table (saved to _llm_{STEP}_comparison.csv)")
     print("="*70)
     print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
 
