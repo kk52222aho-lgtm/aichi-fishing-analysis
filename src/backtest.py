@@ -246,27 +246,63 @@ def walk_forward_llm(
         tmp_csv.parent.mkdir(parents=True, exist_ok=True)
         past.to_csv(tmp_csv, index=False)
 
-        try:
-            res = llm_predictor.predict_with_llm(
-                site=site,
-                species=species,
-                target_date=target_dt.date(),
-                hour=int(test_row.get("departure_hour") or 5),
-                boat=boat,
-                anglers=int(test_row["anglers"]) if pd.notna(test_row.get("anglers")) else None,
-                target_species=test_row.get("target_species"),
-                tackle=test_row.get("tackle") if pd.notna(test_row.get("tackle")) else None,
-                provider=provider,
-                model=model,
-                use_cache=use_cache,
-                catches_path=tmp_csv,
-            )
+        # 429 / queue_exceeded / rate limit に対して exponential backoff + 別 provider fallback
+        # 順序: provider → groq (primary が groq 以外なら) → cerebras (primary が cerebras 以外なら)
+        primary = provider
+        fallback_chain = [primary]
+        for alt in ("groq", "cerebras"):
+            if alt != primary and llm_predictor._get_api_key(alt):
+                fallback_chain.append(alt)
+
+        last_err = None
+        res = None
+        used_provider = primary
+        for prov in fallback_chain:
+            backoff = 5
+            for attempt in range(4):  # 4 attempts: 5s, 10s, 20s, 40s waits
+                try:
+                    res = llm_predictor.predict_with_llm(
+                        site=site,
+                        species=species,
+                        target_date=target_dt.date(),
+                        hour=int(test_row.get("departure_hour") or 5),
+                        boat=boat,
+                        anglers=int(test_row["anglers"]) if pd.notna(test_row.get("anglers")) else None,
+                        target_species=test_row.get("target_species"),
+                        tackle=test_row.get("tackle") if pd.notna(test_row.get("tackle")) else None,
+                        provider=prov,
+                        model=model if prov == primary else None,
+                        use_cache=use_cache,
+                        catches_path=tmp_csv,
+                    )
+                    used_provider = prov
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    msg = str(e).lower()
+                    is_429 = "429" in msg or "queue" in msg or "rate" in msg or "resource_exhausted" in msg
+                    if not is_429:
+                        break  # 非 429 はリトライしない
+                    if attempt < 3:
+                        print(f"  ⏳ trip {i} {prov} 429, retry in {backoff}s "
+                              f"(attempt {attempt+1}/4)")
+                        time.sleep(backoff)
+                        backoff *= 2
+            if res is not None:
+                if used_provider != primary:
+                    print(f"  ↪ trip {i}: {primary} → {used_provider} にフォールバック成功")
+                break
+
+        if res is not None:
             yhat = float(res["prediction"].get("predicted_top_per_angler", 0.0))
             tier_pred = int(res["prediction"].get("tier", 3))
             tier_pred_label = res["prediction"].get("tier_label", "")
             reasoning = res["prediction"].get("reasoning", "")
-        except Exception as e:
-            print(f"  ⚠️ LLM error trip {i}: {e}")
+        else:
+            e = last_err
+            used_provider = "fallback"
+            print(f"  ⚠️ LLM error trip {i} (全プロバイダ失敗): {e}")
             # fallback: 過去全 trip mean ではなく直近 3 trip の median（変化に追従）
             past_sp = past[past["species"] == species]["top_per_angler"].dropna().astype(float)
             if len(past_sp) >= 3:
@@ -298,6 +334,7 @@ def walk_forward_llm(
             "tier_actual": tier_actual,
             "tier_actual_label": tier_actual_label,
             "reasoning": reasoning,
+            "used_provider": used_provider,
             "train_n": i,
         })
 
