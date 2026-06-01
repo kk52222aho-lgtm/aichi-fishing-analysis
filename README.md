@@ -104,7 +104,9 @@ from google.colab import drive, userdata
 drive.mount('/content/drive', force_remount=False)
 
 import os
-os.chdir('/content/drive/MyDrive/aichi-fishing-analysis')
+# 注意: Colab の `!` magic は os.chdir() に従わない。`%cd` を使うかフルパス指定
+%cd /content/drive/MyDrive/aichi-fishing-analysis
+PROJ = '/content/drive/MyDrive/aichi-fishing-analysis'
 
 # 1. 依存（無料枠 LLM のみ。gemini は外す）
 !pip install -q streamlit plotly fastapi "uvicorn[standard]" lightgbm openai pyngrok
@@ -122,13 +124,13 @@ for t in ngrok.get_tunnels():
 
 # 4. FastAPI を 8000 で起動
 get_ipython().system_raw(
-    'uvicorn api.server:app --host 0.0.0.0 --port 8000 '
+    f'cd {PROJ} && uvicorn api.server:app --host 0.0.0.0 --port 8000 '
     '> /content/api.log 2>&1 &'
 )
 
 # 5. Streamlit を 8501 で起動
 get_ipython().system_raw(
-    'streamlit run app/streamlit_app.py '
+    f'cd {PROJ} && streamlit run app/streamlit_app.py '
     '--server.port 8501 --server.headless true '
     '--server.fileWatcherType none > /content/streamlit.log 2>&1 &'
 )
