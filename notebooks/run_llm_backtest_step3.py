@@ -59,8 +59,9 @@ from src import config
 #   step3   : temperature=0.0 + anchor block (±30% hard constraint)
 #   step3_1 : anchor を緩和（参考枠）+ past_max 追加
 #   step3_2 : 類似日 (同月±1 + 同 tide_phase) の過去最大を prompt に注入
+#   step3_3 : 類似日 block を max/median < 2.5 の narrow species だけ発火
 # ------------------------------------------------------------
-STEP = "step3_2"
+STEP = "step3_3"
 
 # ------------------------------------------------------------
 # 比較対象（旧 backtest と同条件）

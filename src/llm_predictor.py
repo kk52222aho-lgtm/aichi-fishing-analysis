@@ -482,11 +482,23 @@ def _build_prompt(
             except Exception:
                 pass
 
-    # ── 類似日ブロック（Step 3.2: 同月±1 + 同 tide_phase での過去実績）
-    # マダイ等 wide-distribution 魚種で、median 寄り予測を打破するための材料
+    # ── 類似日ブロック（Step 3.3: narrow-distribution 魚種限定で発火）
+    # 検証結果:
+    #   - イサキ (max/median≈1.3): 似日 block で MAE 改善 (6.20 → 5.85)
+    #   - ホウボウ (max/median≈4): 似日 max が予測を引き上げ過大予測 → MAE 悪化
+    #   - マダイ (max/median≈25): LLM が contradicting signals で median 寄りに hedge
+    #     → 改善せず
+    # よって max/median < 2.5 の narrow species のみで発火する。
     similar_block = ""
     similar = stats.get("similar_past_trips")
     if similar and similar.get("n_similar", 0) >= 3:
+        smax = similar.get("max", 0)
+        smedian = similar.get("median", 0)
+        spread = (smax / smedian) if smedian > 0 else 999.0
+        if spread >= 2.5:
+            # wide-distribution: 似日 block を出さない（LLM を混乱させるだけ）
+            similar = None
+    if similar:
         crit = similar.get("criteria", {})
         scope = crit.get("scope", "all_boats")
         scope_str = "同船宿" if scope == "same_boat" else "全船宿"
