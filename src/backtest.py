@@ -72,14 +72,26 @@ def walk_forward(
     if len(sub) < min_train + 1:
         raise ValueError(f"trip 数が足りません: {len(sub)} < {min_train + 1}")
 
+    from . import derived_features as _df_mod
+
     rows: list[dict] = []
     for i in range(min_train, len(sub)):
         train_df = sub.iloc[:i]
         test_df = sub.iloc[[i]]
 
-        X_train = features.build_features(train_df)
+        # Step 4: 同魚種 × 同月±1 の過去 trip 統計を特徴量に追加
+        # train 用: train_df 自身を history（各 row は自分より前の row だけ参照）
+        # test  用: train_df を history（test 行は train 全体を参照可、未来漏洩なし）
+        train_with = _df_mod.add_similar_past_features(
+            train_df, history_df=train_df, label_col=label_column,
+        )
+        test_with = _df_mod.add_similar_past_features(
+            test_df, history_df=train_df, label_col=label_column,
+        )
+
+        X_train = features.build_features(train_with)
         y_train = train_df[label_column].astype(float).values
-        X_test = features.build_features(test_df)
+        X_test = features.build_features(test_with)
 
         # カラム合わせ（test 側に無い列は 0 埋め）
         for c in X_train.columns:

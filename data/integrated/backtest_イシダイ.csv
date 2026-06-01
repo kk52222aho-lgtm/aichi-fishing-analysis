@@ -1,3 +1,3 @@
 datetime,actual,predicted,residual,baseline_pred,baseline_residual,tier_pred,tier_pred_label,tier_actual,tier_actual_label,train_n
 2026-01-07 05:30:00,3.0,3.0,0.0,3.0,0.0,3,普通,3,普通,5
-2026-02-21 05:30:00,3.0,3.3,0.3,3.0,0.0,4,好調,2,やや渋い,6
+2026-02-21 05:30:00,3.0,3.35,0.35,3.0,0.0,4,好調,2,やや渋い,6

@@ -85,6 +85,15 @@ DERIVED_CALENDAR_COLS: list[str] = [
     "days_since_new_moon",
 ]
 
+# 同魚種 × 同月±1 の過去 trip 上位/中央値（マダイ等 wide-distribution 魚種で
+# 「大漁日」の signal を統計モデルに与える。LLM 側 Step 3.3 と同じ発想）
+DERIVED_SIMILAR_PAST_COLS: list[str] = [
+    "past_max_same_month",
+    "past_p75_same_month",
+    "past_median_same_month",
+    "past_n_same_month",
+]
+
 
 # ===================================================================
 # 気象派生
@@ -425,4 +434,86 @@ def lookup_catch_lags_for_inference(
         )
         out["boat_records_30d"] = float(m30.sum())
 
+    return out
+
+
+# ===================================================================
+# 同魚種 × 同月±1 の過去 trip 統計（Step 3.3 LLM 側と同じ signal を統計モデルへ）
+# ===================================================================
+
+def add_similar_past_features(
+    df: pd.DataFrame,
+    history_df: pd.DataFrame | None = None,
+    label_col: str = "top_per_angler",
+    species_col: str = "species",
+    datetime_col: str = "datetime",
+) -> pd.DataFrame:
+    """各 row の過去 (同魚種 × 同月±1) trip から max/p75/median/n を計算して列追加。
+
+    walk_forward の各 trip i では、過去 trip 0..i-1 のみが参照可能になるよう、
+    history_df を別途渡せる（渡さない場合は df 自身を history として使う）。
+
+    Args:
+        df: 行ごとに特徴量を追加したい DataFrame（学習でも推論でも可）
+        history_df: 過去参照ソース。None なら df 自身。各行 i では
+                    history_df の中で datetime < row[i].datetime かつ
+                    同魚種 + 月±1 の行を集計する。
+        label_col: 集計対象列（default: top_per_angler）
+
+    Returns:
+        df の copy に [past_max_same_month, past_p75_same_month,
+        past_median_same_month, past_n_same_month] を追加したもの。
+        該当 0 件の行は NaN（後段の features.build_features で median fillna）。
+    """
+    out = df.copy().reset_index(drop=True)
+    hist = (history_df if history_df is not None else df).copy()
+
+    out[datetime_col] = pd.to_datetime(out[datetime_col], errors="coerce")
+    hist[datetime_col] = pd.to_datetime(hist[datetime_col], errors="coerce")
+    if getattr(out[datetime_col].dt, "tz", None) is not None:
+        out[datetime_col] = out[datetime_col].dt.tz_localize(None)
+    if getattr(hist[datetime_col].dt, "tz", None) is not None:
+        hist[datetime_col] = hist[datetime_col].dt.tz_localize(None)
+
+    if label_col not in hist.columns:
+        # ラベル列が無ければ全部 NaN
+        for c in ("past_max_same_month", "past_p75_same_month",
+                  "past_median_same_month", "past_n_same_month"):
+            out[c] = np.nan
+        return out
+
+    hist = hist.dropna(subset=[label_col])
+    hist["_month"] = hist[datetime_col].dt.month
+
+    max_vals, p75_vals, med_vals, n_vals = [], [], [], []
+    for i in range(len(out)):
+        target_dt = out[datetime_col].iloc[i]
+        target_species = out[species_col].iloc[i] if species_col in out.columns else None
+        if pd.isna(target_dt) or target_species is None:
+            max_vals.append(np.nan); p75_vals.append(np.nan)
+            med_vals.append(np.nan); n_vals.append(0)
+            continue
+
+        target_month = int(target_dt.month)
+        months = {((target_month - 2) % 12) + 1, target_month, (target_month % 12) + 1}
+
+        mask = (
+            (hist[datetime_col] < target_dt)
+            & (hist[species_col] == target_species)
+            & (hist["_month"].isin(months))
+        )
+        vals = pd.to_numeric(hist.loc[mask, label_col], errors="coerce").dropna()
+        if len(vals) >= 1:
+            max_vals.append(float(vals.max()))
+            p75_vals.append(float(vals.quantile(0.75)))
+            med_vals.append(float(vals.median()))
+            n_vals.append(int(len(vals)))
+        else:
+            max_vals.append(np.nan); p75_vals.append(np.nan)
+            med_vals.append(np.nan); n_vals.append(0)
+
+    out["past_max_same_month"] = max_vals
+    out["past_p75_same_month"] = p75_vals
+    out["past_median_same_month"] = med_vals
+    out["past_n_same_month"] = n_vals
     return out
