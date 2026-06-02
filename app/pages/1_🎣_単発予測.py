@@ -242,28 +242,51 @@ if submitted:
     st.markdown("### 📊 この予測の根拠データ")
 
     # 過去統計を bullet で
-    n_trips = ctx.get("n_trips_total") or ctx.get("n_trips") or 0
+    n_trips_total = ctx.get("n_trips_total") or 0   # 全 trip
+    n_trips_w_label = ctx.get("n_trips") or 0       # 竿頭の数値が記録されてる trip
     p_median = ctx.get("median")
     p_max = ctx.get("max")
     p_mean = ctx.get("mean")
-    if n_trips:
+    if n_trips_total:
         st.markdown(
-            f"**{boat} で {species} を狙ったのは過去 {n_trips} 回**:"
+            f"**{boat} で {species} を狙ったのは過去 {n_trips_total} 回**:"
         )
+        if n_trips_w_label and n_trips_w_label < n_trips_total:
+            st.caption(
+                f"（うち竿頭の数字が記録されているのは {n_trips_w_label} 回。"
+                "過去最大が小さく見える場合、ブログに数字が書かれてない日が多い "
+                "船宿である可能性があります）"
+            )
         bullets = []
         if p_median is not None:
             bullets.append(f"竿頭の中央値: **{p_median} 尾**（半分の日はこの値以下）")
         if p_mean is not None:
             bullets.append(f"竿頭の平均: **{round(p_mean, 1)} 尾**")
         if p_max is not None:
-            bullets.append(f"過去最大: **{int(p_max)} 尾**（大漁日の天井）")
+            bullets.append(
+                f"記録された範囲での最大: **{int(p_max)} 尾**"
+                + ("" if n_trips_w_label >= 20 else "（データ少なめ、要注意）")
+            )
         recent = ctx.get("recent_5_trips") or []
         if recent:
-            recent_str = ", ".join(
-                f"{r.get('datetime','?')[:10]} → {r.get('top_per_angler', '?')}尾"
-                for r in recent[-3:]
-            )
-            bullets.append(f"直近 3 回の竿頭: {recent_str}")
+            # NaN / None の top_per_angler は除外
+            valid = []
+            for r in recent[::-1]:  # 新しい順
+                v = r.get("top_per_angler")
+                try:
+                    fv = float(v)
+                    if fv == fv:  # NaN チェック
+                        valid.append((r.get("datetime", "")[:10], fv))
+                except (TypeError, ValueError):
+                    continue
+                if len(valid) >= 3:
+                    break
+            if valid:
+                recent_str = ", ".join(
+                    f"{d} → {int(v) if v.is_integer() else v} 尾"
+                    for d, v in valid
+                )
+                bullets.append(f"直近の竿頭記録: {recent_str}")
         for b in bullets:
             st.markdown(f"- {b}")
     else:
@@ -278,7 +301,9 @@ if submitted:
         if "wave_height" in cond:
             cond_lines.append(f"🌊 波高 **{cond['wave_height']} m**")
         if "wind_speed_10m" in cond:
-            cond_lines.append(f"💨 風速 **{cond['wind_speed_10m']} m/s**")
+            # _readable_conditions が km/h -> m/s 換算済みで返す
+            ws_ms = float(cond["wind_speed_10m"])
+            cond_lines.append(f"💨 風速 **{ws_ms:.1f} m/s**")
         if "tide_phase" in cond:
             cond_lines.append(f"🌙 潮回り **{cond['tide_phase']}**")
         if "tide_cm" in cond:

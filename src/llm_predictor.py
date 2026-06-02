@@ -373,10 +373,16 @@ def find_similar_past_trips(
 
 
 def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
+    """LLM prompt 向けに当日コンディションを抽出。
+
+    重要: Open-Meteo はデフォルトで風速を **km/h** で返すが、日本の釣り人は m/s
+    で会話する。LLM 出力の reasoning でも m/s として解釈される前提なので、
+    ここで km/h → m/s 換算してから渡す（過去 backtest で 3.6 倍誤読していた）。
+    """
     r = row.iloc[0].to_dict()
     out: dict[str, Any] = {}
     keys_round = {
-        "temperature_2m": 1, "wind_speed_10m": 1, "wind_direction_10m": 0,
+        "temperature_2m": 1, "wind_direction_10m": 0,
         "pressure_msl": 1, "precipitation": 1, "cloud_cover": 0,
         "wave_height": 2, "wave_period": 1, "swell_wave_height": 2,
         "ocean_current_velocity": 2, "ocean_current_direction": 0,
@@ -388,6 +394,13 @@ def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
         if v is None or (isinstance(v, float) and np.isnan(v)):
             continue
         out[k] = round(float(v), nd)
+    # 風速は km/h -> m/s 換算してから提供
+    for wind_key in ("wind_speed_10m", "wind_gusts_10m"):
+        v = r.get(wind_key)
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            continue
+        out[wind_key] = round(float(v) / 3.6, 1)  # m/s 単位
+    out["_wind_unit_note"] = "風速は m/s 単位（Open-Meteo の km/h を換算済み）"
     for k in ("moon_phase", "tide_phase"):
         if r.get(k):
             out[k] = r[k]
