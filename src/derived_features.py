@@ -94,6 +94,17 @@ DERIVED_SIMILAR_PAST_COLS: list[str] = [
     "past_n_same_month",
 ]
 
+# 同魚種の直近 7日/30日 max/mean — 「今その魚が活きてるか」signal
+# 船宿を跨いで集計するので「地域全体の今週の調子」が取れる
+DERIVED_SPECIES_RECENT_COLS: list[str] = [
+    "species_recent7d_max",
+    "species_recent7d_mean",
+    "species_recent7d_n",
+    "species_recent30d_max",
+    "species_recent30d_mean",
+    "species_recent30d_n",
+]
+
 
 # ===================================================================
 # 気象派生
@@ -516,4 +527,65 @@ def add_similar_past_features(
     out["past_p75_same_month"] = p75_vals
     out["past_median_same_month"] = med_vals
     out["past_n_same_month"] = n_vals
+    return out
+
+
+def add_species_recent_features(
+    df: pd.DataFrame,
+    history_df: pd.DataFrame | None = None,
+    label_col: str = "top_per_angler",
+    species_col: str = "species",
+    datetime_col: str = "datetime",
+    windows: tuple[int, ...] = (7, 30),
+) -> pd.DataFrame:
+    """各 row の同魚種 × 直近 N 日（船宿を跨ぐ）max/mean/n を列追加。
+
+    add_similar_past_features は同月±1 で「seasonal な大漁日」を捕捉する一方、
+    こちらは「今 hot な species か」を捕捉する recency signal。マダイ等の
+    spawning peak で他の船宿が大漁出したら今週中はうちも期待できる、等。
+
+    Args と past_only ガードは add_similar_past_features と同じ。
+    """
+    out = df.copy().reset_index(drop=True)
+    hist = (history_df if history_df is not None else df).copy()
+
+    out[datetime_col] = pd.to_datetime(out[datetime_col], errors="coerce")
+    hist[datetime_col] = pd.to_datetime(hist[datetime_col], errors="coerce")
+    if getattr(out[datetime_col].dt, "tz", None) is not None:
+        out[datetime_col] = out[datetime_col].dt.tz_localize(None)
+    if getattr(hist[datetime_col].dt, "tz", None) is not None:
+        hist[datetime_col] = hist[datetime_col].dt.tz_localize(None)
+
+    if label_col not in hist.columns:
+        for w in windows:
+            for suf in ("max", "mean", "n"):
+                out[f"species_recent{w}d_{suf}"] = np.nan if suf != "n" else 0
+        return out
+
+    hist = hist.dropna(subset=[label_col])
+
+    for w in windows:
+        max_vals, mean_vals, n_vals = [], [], []
+        for i in range(len(out)):
+            target_dt = out[datetime_col].iloc[i]
+            target_species = out[species_col].iloc[i] if species_col in out.columns else None
+            if pd.isna(target_dt) or target_species is None:
+                max_vals.append(np.nan); mean_vals.append(np.nan); n_vals.append(0)
+                continue
+            window_start = target_dt - pd.Timedelta(days=w)
+            mask = (
+                (hist[datetime_col] >= window_start)
+                & (hist[datetime_col] < target_dt)
+                & (hist[species_col] == target_species)
+            )
+            vals = pd.to_numeric(hist.loc[mask, label_col], errors="coerce").dropna()
+            if len(vals) >= 1:
+                max_vals.append(float(vals.max()))
+                mean_vals.append(float(vals.mean()))
+                n_vals.append(int(len(vals)))
+            else:
+                max_vals.append(np.nan); mean_vals.append(np.nan); n_vals.append(0)
+        out[f"species_recent{w}d_max"] = max_vals
+        out[f"species_recent{w}d_mean"] = mean_vals
+        out[f"species_recent{w}d_n"] = n_vals
     return out

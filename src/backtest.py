@@ -89,6 +89,17 @@ def walk_forward(
             test_df, history_df=train_df, label_col=label_column,
         )
 
+        # Step 5: 同魚種 直近 7d/30d 全船宿 max/mean (recency 重視)
+        # walk_forward の sub は species 固定なのでまず BIG history (全 species 入った
+        # integrated) 由来の rows を使う方が情報多い…が、ここは local sub のみで一旦
+        # 実装。sub には同 species しかないが、windows 内に複数 boat があれば集計が効く
+        train_with = _df_mod.add_species_recent_features(
+            train_with, history_df=train_df, label_col=label_column,
+        )
+        test_with = _df_mod.add_species_recent_features(
+            test_with, history_df=train_df, label_col=label_column,
+        )
+
         X_train = features.build_features(train_with)
         y_train = train_df[label_column].astype(float).values
         X_test = features.build_features(test_with)
