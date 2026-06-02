@@ -8,6 +8,9 @@ venv/
 data/weather/*.json
 data/weather/*.parquet
 data/integrated/*.parquet
+# 例外: integrated.parquet は Streamlit デプロイ環境でも LLM の similar-past
+# lookup に必要。ローカル再生成しても明示的に commit する場合だけ反映される。
+!data/integrated/integrated.parquet
 data/images/*.jpg
 data/images/*.jpeg
 data/images/*.png

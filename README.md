@@ -159,6 +159,41 @@ print('📋 UI ログ:   !tail -f /content/streamlit.log')
 
 `available_providers()` は **cerebras → groq → ollama → gemini** の優先順。前 3 つは無料、gemini は最後に落ちる。Gemini キーを設定しない限り課金は発生しません。Backtest スクリプト [notebooks/run_llm_backtest_step3.py](notebooks/run_llm_backtest_step3.py) も無料枠のみ使用。
 
+### Streamlit Cloud で 24/7 公開（無料、推奨）
+
+1. https://streamlit.io/cloud にアクセスして GitHub でログイン
+2. **New app** で:
+   - Repository: `kk52222aho-lgtm/aichi-fishing-analysis`
+   - Branch: `main`
+   - Main file path: `app/streamlit_app.py`
+3. **Advanced settings → Secrets** に TOML 形式で API キーを貼る:
+   ```toml
+   CEREBRAS_API_KEY = "csk-..."
+   GROQ_API_KEY = "gsk_..."
+   ```
+   ([streamlit_app.py](app/streamlit_app.py) が起動時に env に bridge）
+4. **Deploy** で公開、URL は `https://aichi-fishing-analysis.streamlit.app/`
+
+**制約**:
+- ファイルシステムが ephemeral → `predictions_log.csv` は再起動で消える（運用ロガーで本気で精度測りたい場合は fly.io へ）
+- 15 分無アクセスで sleep、再アクセス時に 20-30 秒で起動
+
+### fly.io で永続化 + FastAPI 同梱（中級）
+
+将来 `predictions_log.csv` の永続化や `/predict` API 公開が欲しくなったとき:
+
+```bash
+# fly.io CLI
+curl -L https://fly.io/install.sh | sh
+fly launch        # interactive: 名前/region 設定
+fly secrets set CEREBRAS_API_KEY=... GROQ_API_KEY=...
+fly volumes create aichi_data --size 1
+# fly.toml に volume mount を追加 (data/ にマウント)
+fly deploy
+```
+
+Dockerfile + fly.toml は未コミット（必要になったら別途）。月 ~$0 (3 shared CPU 内)。
+
 ## ディレクトリ構成
 
 ```

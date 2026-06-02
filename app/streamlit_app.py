@@ -11,7 +11,18 @@
 """
 from __future__ import annotations
 
+import os
+
 import streamlit as st
+
+# Streamlit Cloud secrets を環境変数にブリッジ（_get_api_key は env を見るため）
+# fly.io / Render では DOCKER の ENV 経由で直接 env に入るので no-op
+try:
+    for _k in ("CEREBRAS_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY"):
+        if _k in st.secrets and not os.environ.get(_k):
+            os.environ[_k] = st.secrets[_k]
+except Exception:
+    pass
 
 from utils import (
     available_providers,
