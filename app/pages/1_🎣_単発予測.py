@@ -39,10 +39,10 @@ with st.form("predict_form"):
         if derived_site:
             site = derived_site
             sites_dict = dict(list_sites())
-            st.caption(f"site: **{sites_dict.get(site, site)}** (registry 由来)")
+            st.caption(f"地点: **{sites_dict.get(site, site)}**")
         else:
             site = st.selectbox(
-                "site (registry 未登録)",
+                "地点（船宿から自動推定できなかったので手動選択）",
                 [code for code, _ in list_sites()],
                 format_func=lambda c: dict(list_sites()).get(c, c),
             )
@@ -57,24 +57,24 @@ with st.form("predict_form"):
         target_date = st.date_input("対象日", value=date.today() + timedelta(days=1))
 
     with col3:
-        hour = st.number_input("出船時刻 (hour)", min_value=0, max_value=23, value=6)
+        hour = st.number_input("出船時刻", min_value=0, max_value=23, value=6,
+                                help="何時に港を出る予定か")
         anglers = st.number_input("乗船人数", min_value=1, max_value=20, value=6)
         tackle = st.text_input("仕掛け (任意)", value="タイラバ" if species == "マダイ" else "")
 
-    st.divider()
-    col_prov, col_btn = st.columns([2, 1])
-    with col_prov:
+    # 詳細設定（普段は隠す。釣り人は触る必要なし）
+    with st.expander("⚙️ 詳細設定（開発者向け）", expanded=False):
         providers = available_providers()
         provider = st.selectbox(
             "LLM プロバイダ",
             providers,
             index=0,
-            help="先頭が最も TPM が広いプロバイダ。rate limit 時は自動で次の候補に切替されます。",
+            help="LLM のバックエンド。普段はそのままで OK。"
+                 "rate limit 時は自動で次の候補に切替されます。",
         )
-    with col_btn:
-        st.write("")  # spacer
-        st.write("")
-        submitted = st.form_submit_button("🔮 予測する", use_container_width=True)
+
+    st.divider()
+    submitted = st.form_submit_button("🔮 予測する", use_container_width=True)
 
 # ── 予測実行 ─────────────────────────────────────────────
 if submitted:
@@ -131,11 +131,21 @@ if submitted:
     elif status["level"] == "ok":
         st.success(f"{status['emoji']} **{status['label']}** — {status['summary']}")
 
+    # ── 出船困難時は予測を控えめに、矛盾を回避 ────────────
+    is_no_go = status["level"] == "no_go"
+
     # ── メイン結果 ─────────────────────────────────────
     st.divider()
     head_col, cta_col = st.columns([3, 1])
     with head_col:
-        st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
+        if is_no_go:
+            st.subheader(f"📋 釣果予測 (※出船できれば): {boat} × {species} × {target_date}")
+            st.caption(
+                "⛔ 海況が悪いため**実出船は困難**と判定されています。"
+                "以下の予測は「もし出船できれば」の参考値です。"
+            )
+        else:
+            st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
     with cta_col:
         # 「他の船と比べる」導線（同条件で 4-5 船宿を一気に並べる）
         if st.button(
@@ -158,8 +168,7 @@ if submitted:
     )
     st.caption(
         "★ **ランクの見方**: 1 厳しい / 2 やや渋い / 3 普通 / 4 好調 / 5 大漁。"
-        " バックテスト実測でランク ±1 以内一致 **55-65%** で実用線。"
-        " 絶対値（尾数）は参考（マダイで平均誤差 16 尾、本質的にばらつき大）。"
+        " 尾数は参考値（傾向を見る指標であり、ピタリ賞ではないです）。"
     )
 
     c1, c2, c3 = st.columns(3)

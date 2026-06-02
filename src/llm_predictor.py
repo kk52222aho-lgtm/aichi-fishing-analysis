@@ -688,12 +688,17 @@ def _post_process(llm_out: dict, stats: dict) -> dict:
     return llm_out
 
 
+# プロンプトや入力データの解釈が変わるたびにバンプしてキャッシュを無効化する
+# v1 -> v2: 風速を km/h -> m/s 換算してから LLM に渡すよう変更 (2026-06-02)
+_CACHE_VERSION = "v2"
+
+
 def _cache_path(site: str, species: str, target_date: date, hour: int,
                 boat: Optional[str], provider: str, model: str) -> Path:
     safe = lambda s: re.sub(r"[^\w-]", "_", str(s))
     fname = (
         f"{safe(site)}_{safe(species)}_{target_date}_{hour:02d}"
-        f"_{safe(boat or 'none')}_{safe(provider)}_{safe(model)}.json"
+        f"_{safe(boat or 'none')}_{safe(provider)}_{safe(model)}_{_CACHE_VERSION}.json"
     )
     return config.DATA_DIR / "predictions" / fname
 
