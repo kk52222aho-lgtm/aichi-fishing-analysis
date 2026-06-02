@@ -10,6 +10,9 @@
     GET /tide?port=&year=                潮汐データ
     GET /catches                         過去の統合データ（学習データ確認）
     POST /catches                        実釣果フィードバック投稿
+    POST /feedback                       予測 id に実績を紐付け（運用ロガー）
+    GET /accuracy?species=               運用精度（実績紐付け済み予測の集計）
+    GET /predictions                     予測ログ検索（Streamlit 用）
     GET /report.png                      可視化レポート画像
 """
 from __future__ import annotations
@@ -26,7 +29,10 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src import config, llm_predictor, predictor, tide_fetcher, visualizer, weather_fetcher  # noqa: E402
+from src import (  # noqa: E402
+    config, llm_predictor, predictions_log, predictor,
+    tide_fetcher, visualizer, weather_fetcher,
+)
 
 app = FastAPI(
     title="Aichi Fishing Catch Prediction API",
@@ -60,6 +66,7 @@ def root() -> dict:
         "endpoints": [
             "/predict", "/sites", "/species", "/providers",
             "/weather", "/tide", "/catches", "/report.png",
+            "/feedback", "/accuracy", "/predictions",
         ],
     }
 
@@ -157,23 +164,31 @@ def predict_endpoint(
 
     try:
         if engine == "statistical":
-            return _do_statistical()
-        if engine == "llm":
-            return _do_llm()
-        # auto: LLM first, statistical fallback
-        try:
-            return _do_llm()
-        except Exception as e_llm:
+            result = _do_statistical()
+        elif engine == "llm":
+            result = _do_llm()
+        else:
+            # auto: LLM first, statistical fallback
             try:
-                r = _do_statistical()
-                r["llm_error"] = str(e_llm)
-                return r
-            except Exception as e_stat:
-                raise RuntimeError(f"llm: {e_llm} / statistical: {e_stat}")
+                result = _do_llm()
+            except Exception as e_llm:
+                try:
+                    result = _do_statistical()
+                    result["llm_error"] = str(e_llm)
+                except Exception as e_stat:
+                    raise RuntimeError(f"llm: {e_llm} / statistical: {e_stat}")
     except FileNotFoundError as e:
         raise HTTPException(404, str(e))
     except Exception as e:
         raise HTTPException(500, f"prediction failed: {e}")
+
+    # 予測ログに記録（フィードバック紐付け用の prediction_id を返却）
+    try:
+        pid = predictions_log.log_prediction(result)
+        result["prediction_id"] = pid
+    except Exception as e:
+        result["log_error"] = str(e)
+    return result
 
 
 @app.get("/weather")
@@ -209,6 +224,64 @@ def add_catch(payload: CatchIn) -> dict:
         df = df_new
     df.to_csv(target, index=False)
     return {"status": "ok", "rows": len(df)}
+
+
+# ============================================================
+# 予測ロギング & 実績フィードバック
+# ============================================================
+
+class FeedbackIn(BaseModel):
+    prediction_id: str
+    actual_top_per_angler: Optional[float] = None
+    actual_total_catch: Optional[float] = None
+    actual_qualitative: Optional[str] = None  # 大漁/好調/普通/渋い/厳しい
+    notes: Optional[str] = None
+
+
+@app.post("/feedback")
+def submit_feedback(payload: FeedbackIn) -> dict:
+    """予測 id に実績を紐付ける。
+
+    使い方:
+      1. /predict のレスポンスに含まれる prediction_id を控えておく
+      2. 出船後、実際の竿頭 N 尾を POST /feedback で送る
+      3. /accuracy で運用真の精度が確認できる
+    """
+    res = predictions_log.link_feedback(
+        prediction_id=payload.prediction_id,
+        actual_top_per_angler=payload.actual_top_per_angler,
+        actual_total_catch=payload.actual_total_catch,
+        actual_qualitative=payload.actual_qualitative,
+        notes=payload.notes,
+    )
+    if "error" in res:
+        raise HTTPException(404, res["error"])
+    return {"status": "ok", "row": res}
+
+
+@app.get("/accuracy")
+def accuracy(
+    species: Optional[str] = Query(None, description="魚種で絞り込み（未指定なら全体）"),
+) -> dict:
+    """ロギング済み予測のうち実績が紐付いた分から、運用真の MAE / tier 一致率を返す。"""
+    return predictions_log.compute_summary(species=species)
+
+
+@app.get("/predictions")
+def list_predictions(
+    site: Optional[str] = Query(None),
+    species: Optional[str] = Query(None),
+    boat: Optional[str] = Query(None),
+    target_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    only_pending_feedback: bool = Query(False),
+    limit: int = Query(50, ge=1, le=500),
+) -> list[dict]:
+    """予測ログを検索（Streamlit フィードバックフォームの選択肢用）。"""
+    return predictions_log.find_recent_predictions(
+        site=site, species=species, boat=boat,
+        target_date=target_date, only_pending_feedback=only_pending_feedback,
+        limit=limit,
+    )
 
 
 @app.get("/report.png")

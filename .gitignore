@@ -13,6 +13,7 @@ data/images/*.jpeg
 data/images/*.png
 data/scraped/
 data/models/
+data/predictions_log.csv
 !data/**/.keep
 .vscode/
 .idea/

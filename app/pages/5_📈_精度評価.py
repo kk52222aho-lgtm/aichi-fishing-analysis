@@ -18,16 +18,126 @@ from utils import (
     available_providers,
     list_species,
 )
-from src import backtest, config  # noqa: E402
+from src import backtest, config, predictions_log  # noqa: E402
 
 st.set_page_config(page_title="精度評価", page_icon="📈", layout="wide")
-st.title("📈 精度評価 (walk-forward backtest)")
+st.title("📈 精度評価")
+st.caption(
+    "**運用ログ** (実際の予測 vs 実績) と **walk-forward backtest** (履歴での検証) "
+    "の両方を見る。バックテストは「過去にこう予測してたら」、運用ログは「実際にこう予測した」。"
+)
+
+INTEGRATED_DIR: Path = config.INTEGRATED_DIR
+
+
+# ============================================================
+# 運用ログ（実際の /predict と /feedback ペア）
+# ============================================================
+st.subheader("🎯 運用ログ精度 (実予測 vs 実績)")
+st.caption(
+    "サーバの `/predict` 呼び出しはすべて `data/predictions_log.csv` に記録され、"
+    "出船後の `/feedback` で実績が紐付けられる。下記はその集計。"
+)
+
+species_filter = st.selectbox(
+    "魚種フィルタ",
+    ["（全体）"] + list_species(min_trips=3),
+    key="opslog_sp",
+)
+sp_arg = None if species_filter == "（全体）" else species_filter
+log_summary = predictions_log.compute_summary(species=sp_arg)
+
+if log_summary.get("n_total", 0) == 0:
+    st.info("まだ予測ログがありません。Page 1 から予測を実行すると記録が始まります。")
+else:
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("総予測数", log_summary.get("n_total", 0))
+    c2.metric("実績紐付け済", log_summary.get("n_with_feedback", 0))
+    c3.metric(
+        "feedback 率",
+        f"{(log_summary.get('feedback_rate') or 0) * 100:.0f}%",
+    )
+    if "mae" in log_summary:
+        c4.metric("運用 MAE", f"{log_summary['mae']} 尾")
+    if "bias" in log_summary:
+        c5.metric("bias", f"{log_summary['bias']:+.2f}")
+
+    # engine 別内訳
+    by_eng = log_summary.get("by_engine") or {}
+    if by_eng:
+        st.markdown("**Engine 別 (実績紐付け済みのみ)**")
+        eng_rows = [
+            {"engine": k, "n": v["n"], "mae": v["mae"], "bias": v["bias"]}
+            for k, v in by_eng.items()
+        ]
+        st.dataframe(pd.DataFrame(eng_rows), hide_index=True, use_container_width=True)
+
+# ── フィードバック投稿フォーム ───────────────────────────
+with st.expander("➕ 実績を入力 (出船後)", expanded=False):
+    st.caption(
+        "予測時に発行された **prediction_id** に対して、その日実際に何尾釣れたかを送信。"
+        "未紐付けの予測候補から選ぶこともできる。"
+    )
+
+    pending = predictions_log.find_recent_predictions(
+        only_pending_feedback=True, limit=20,
+    )
+    if pending:
+        labels = [
+            f"{p.get('target_date')} {p.get('site')} {p.get('species')} "
+            f"@{p.get('boat') or '?'} [{p.get('prediction_id')[:8]}...] "
+            f"→ 予測 {p.get('predicted_top_per_angler')} 尾"
+            for p in pending
+        ]
+        choice = st.selectbox("未紐付けの予測から選ぶ", labels, key="fb_pending")
+        chosen_pid = pending[labels.index(choice)]["prediction_id"]
+        st.code(f"prediction_id = {chosen_pid}", language="text")
+    else:
+        chosen_pid = st.text_input(
+            "prediction_id (16 桁の hex)", key="fb_pid_manual",
+        )
+
+    fb_actual = st.number_input(
+        "実際の竿頭釣果 (個人最大、尾)",
+        min_value=0.0, value=0.0, step=1.0, key="fb_actual",
+    )
+    fb_qual = st.selectbox(
+        "定性 (任意)",
+        ["", "大漁", "好調", "普通", "渋い", "厳しい", "ボウズ"],
+        key="fb_qual",
+    )
+    fb_notes = st.text_area("メモ (任意)", key="fb_notes", height=70)
+
+    if st.button("📨 フィードバック送信", key="fb_submit"):
+        if not chosen_pid:
+            st.warning("prediction_id を選ぶか入力してください。")
+        else:
+            try:
+                r = predictions_log.link_feedback(
+                    prediction_id=chosen_pid,
+                    actual_top_per_angler=float(fb_actual),
+                    actual_qualitative=fb_qual or None,
+                    notes=fb_notes or None,
+                )
+                if "error" in r:
+                    st.error(r["error"])
+                else:
+                    st.success(f"✅ 紐付け完了。実績 {fb_actual} 尾を記録しました。")
+                    st.cache_data.clear()
+            except Exception as e:
+                st.error(f"失敗: {e}")
+
+st.divider()
+
+
+# ============================================================
+# Walk-forward backtest（履歴での検証、既存セクション）
+# ============================================================
+st.subheader("🧪 walk-forward backtest (履歴検証)")
 st.caption(
     "trip i の予測には trip[0..i-1] までしか使わない。"
     " 全 trip の集計で **MAE / 相関 / tier 一致率 / baseline 比較** を出す。"
 )
-
-INTEGRATED_DIR: Path = config.INTEGRATED_DIR
 
 
 def _summarize_csv(csv_path: Path) -> Optional[dict]:
