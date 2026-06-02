@@ -16,6 +16,7 @@ from utils import (
     safe_predict,
     tier_emoji,
 )
+from src import predictions_log
 
 st.set_page_config(page_title="単発予測", page_icon="🎣", layout="wide")
 st.title("🎣 単発予測")
@@ -97,6 +98,16 @@ if submitted:
     cond = result.get("conditions", {})
     model_info = result.get("model", {})
 
+    # ── 予測ログに記録 (出船後にフィードバック紐付け用)
+    # 直接 predict_with_llm を呼んでるので engine 情報を補ってから渡す
+    log_result = dict(result)
+    log_result.setdefault("engine", "llm")
+    try:
+        pid = predictions_log.log_prediction(log_result)
+    except Exception as e:
+        pid = None
+        st.caption(f"⚠️ 予測ログ保存失敗 (機能は影響なし): {e}")
+
     # ── メイン結果 ─────────────────────────────────────
     st.divider()
     st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
@@ -159,6 +170,55 @@ if submitted:
         with cc2:
             if vs_med is not None:
                 st.metric("vs 自船中央値", f"{vs_med:.2f}x")
+
+    # ── 実績フィードバック誘導 ──────────────────────────
+    if pid:
+        st.divider()
+        st.markdown("### 🎯 実績フィードバック")
+        st.caption(
+            "この予測は `prediction_id` 付きで記録されています。"
+            "出船後、実際の竿頭釣果を入力すると **運用真の精度** に反映されます。"
+            "（注: Streamlit Cloud はファイルが ephemeral なので、長期保管したい場合は fly.io デプロイへ）"
+        )
+        col_pid, col_fb = st.columns([3, 1])
+        with col_pid:
+            st.code(f"prediction_id = {pid}", language="text")
+        with col_fb:
+            st.markdown("[📈 精度評価ページ で入力 →](./精度評価)")
+
+        # その場で素早く実績登録できるショートカット
+        with st.expander("⚡ 出船後の実績をその場で登録", expanded=False):
+            quick_actual = st.number_input(
+                "実際の竿頭釣果 (個人最大、尾)",
+                min_value=0.0, value=0.0, step=1.0,
+                key=f"quick_{pid}",
+            )
+            quick_qual = st.selectbox(
+                "定性 (任意)",
+                ["", "大漁", "好調", "普通", "渋い", "厳しい", "ボウズ"],
+                key=f"quick_q_{pid}",
+            )
+            quick_notes = st.text_input(
+                "メモ (任意)", key=f"quick_n_{pid}",
+            )
+            if st.button("✅ 実績を記録", key=f"quick_btn_{pid}"):
+                try:
+                    r = predictions_log.link_feedback(
+                        prediction_id=pid,
+                        actual_top_per_angler=float(quick_actual),
+                        actual_qualitative=quick_qual or None,
+                        notes=quick_notes or None,
+                    )
+                    if "error" in r:
+                        st.error(r["error"])
+                    else:
+                        st.success(
+                            f"記録完了。予測 {pred.get('predicted_top_per_angler')} 尾 / "
+                            f"実績 {quick_actual} 尾 (誤差 "
+                            f"{abs(float(pred.get('predicted_top_per_angler', 0)) - quick_actual):.1f} 尾)"
+                        )
+                except Exception as e:
+                    st.error(f"失敗: {e}")
 
     # ── 詳細情報（expander） ──────────────────────────
     with st.expander("🔍 boat_context (過去統計)"):
