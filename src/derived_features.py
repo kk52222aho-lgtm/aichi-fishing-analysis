@@ -105,6 +105,15 @@ DERIVED_SPECIES_RECENT_COLS: list[str] = [
     "species_recent30d_n",
 ]
 
+# 過去「big catch day (top quartile)」の SST / 季節 / 潮位 重心からの距離
+# データ駆動の spawning/SST 最適帯シグナル — ハードコード table 不要
+DERIVED_BIG_DAY_PROXIMITY_COLS: list[str] = [
+    "sst_dist_from_top_catches",       # |today_sst - mean(SST on top-quartile days)|
+    "doy_dist_from_top_catches",       # circular day-of-year distance
+    "tide_dist_from_top_catches",      # |today_tide_cm - mean(tide_cm on top-quartile days)|
+    "big_day_history_n",               # 信頼度（top-quartile が n 件あったか）
+]
+
 
 # ===================================================================
 # 気象派生
@@ -588,4 +597,114 @@ def add_species_recent_features(
         out[f"species_recent{w}d_max"] = max_vals
         out[f"species_recent{w}d_mean"] = mean_vals
         out[f"species_recent{w}d_n"] = n_vals
+    return out
+
+
+def add_big_day_proximity_features(
+    df: pd.DataFrame,
+    history_df: pd.DataFrame | None = None,
+    label_col: str = "top_per_angler",
+    species_col: str = "species",
+    datetime_col: str = "datetime",
+    sst_col: str = "sea_surface_temperature",
+    tide_col: str = "tide_cm",
+    top_quartile: float = 0.75,
+    min_big_days: int = 3,
+) -> pd.DataFrame:
+    """各 row の「今日のコンディションが過去の big catch day にどれだけ近いか」を計算。
+
+    過去 trip の top quartile (大漁日) における SST / day_of_year / tide_cm の
+    重心を取り、今日のそれらとの距離を返す。距離が小さい = 大漁日に似た条件。
+
+    ハードコードの spawning month / SST optimal range は使わずデータ駆動。マダイ
+    のような分布の広い魚種では「過去の大漁日のコンディションが今日に揃ってる」
+    シグナルが median 寄り予測を上方修正する材料になる。
+
+    Returns:
+        df のコピーに DERIVED_BIG_DAY_PROXIMITY_COLS を追加したもの。
+        過去 big day が min_big_days 未満なら全 NaN（後段 build_features で fillna）。
+    """
+    out = df.copy().reset_index(drop=True)
+    hist = (history_df if history_df is not None else df).copy()
+
+    out[datetime_col] = pd.to_datetime(out[datetime_col], errors="coerce")
+    hist[datetime_col] = pd.to_datetime(hist[datetime_col], errors="coerce")
+    if getattr(out[datetime_col].dt, "tz", None) is not None:
+        out[datetime_col] = out[datetime_col].dt.tz_localize(None)
+    if getattr(hist[datetime_col].dt, "tz", None) is not None:
+        hist[datetime_col] = hist[datetime_col].dt.tz_localize(None)
+
+    if label_col not in hist.columns:
+        for c in DERIVED_BIG_DAY_PROXIMITY_COLS:
+            out[c] = np.nan if c != "big_day_history_n" else 0
+        return out
+
+    hist = hist.dropna(subset=[label_col])
+
+    sst_d, doy_d, tide_d, n_big = [], [], [], []
+    for i in range(len(out)):
+        target_dt = out[datetime_col].iloc[i]
+        target_species = out[species_col].iloc[i] if species_col in out.columns else None
+
+        if pd.isna(target_dt) or target_species is None:
+            sst_d.append(np.nan); doy_d.append(np.nan)
+            tide_d.append(np.nan); n_big.append(0)
+            continue
+
+        past = hist[
+            (hist[datetime_col] < target_dt)
+            & (hist[species_col] == target_species)
+        ]
+        if len(past) < min_big_days * 2:
+            # 少なすぎる
+            sst_d.append(np.nan); doy_d.append(np.nan)
+            tide_d.append(np.nan); n_big.append(int(len(past)))
+            continue
+
+        # Top quartile = big days
+        threshold = past[label_col].quantile(top_quartile)
+        big_days = past[past[label_col] >= threshold]
+        if len(big_days) < min_big_days:
+            sst_d.append(np.nan); doy_d.append(np.nan)
+            tide_d.append(np.nan); n_big.append(int(len(big_days)))
+            continue
+        n_big.append(int(len(big_days)))
+
+        # SST distance
+        if sst_col in big_days.columns and sst_col in out.columns:
+            big_sst = pd.to_numeric(big_days[sst_col], errors="coerce").dropna()
+            today_sst = pd.to_numeric(out[sst_col].iloc[i:i + 1], errors="coerce").iloc[0]
+            if len(big_sst) > 0 and pd.notna(today_sst):
+                sst_d.append(abs(float(today_sst) - float(big_sst.mean())))
+            else:
+                sst_d.append(np.nan)
+        else:
+            sst_d.append(np.nan)
+
+        # Day of year distance (circular: max diff 182.5 days)
+        big_doy = big_days[datetime_col].dt.dayofyear.dropna()
+        today_doy = float(target_dt.dayofyear)
+        if len(big_doy) > 0:
+            mean_doy = float(big_doy.mean())
+            raw_diff = abs(today_doy - mean_doy)
+            circular_diff = min(raw_diff, 365.0 - raw_diff)
+            doy_d.append(circular_diff)
+        else:
+            doy_d.append(np.nan)
+
+        # Tide cm distance
+        if tide_col in big_days.columns and tide_col in out.columns:
+            big_tide = pd.to_numeric(big_days[tide_col], errors="coerce").dropna()
+            today_tide = pd.to_numeric(out[tide_col].iloc[i:i + 1], errors="coerce").iloc[0]
+            if len(big_tide) > 0 and pd.notna(today_tide):
+                tide_d.append(abs(float(today_tide) - float(big_tide.mean())))
+            else:
+                tide_d.append(np.nan)
+        else:
+            tide_d.append(np.nan)
+
+    out["sst_dist_from_top_catches"] = sst_d
+    out["doy_dist_from_top_catches"] = doy_d
+    out["tide_dist_from_top_catches"] = tide_d
+    out["big_day_history_n"] = n_big
     return out

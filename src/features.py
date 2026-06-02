@@ -47,6 +47,10 @@ NUMERIC_WEATHER_COLS = (
     + CHLOROPHYLL_COLS
     + list(df_mod.DERIVED_SIMILAR_PAST_COLS)
     + list(df_mod.DERIVED_SPECIES_RECENT_COLS)
+    # NOTE: DERIVED_BIG_DAY_PROXIMITY_COLS was tested in Step 6 but reverted:
+    # data-driven distance from top-quartile big days added +0.45 net MAE
+    # because n_train < 30 → top quartile is only 2-7 samples → noisy centroid.
+    # Function kept in derived_features for revival when data grows.
 )
 
 CIRCULAR_COLS = [
