@@ -111,7 +111,22 @@ if submitted:
 
     # ── メイン結果 ─────────────────────────────────────
     st.divider()
-    st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
+    head_col, cta_col = st.columns([3, 1])
+    with head_col:
+        st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
+    with cta_col:
+        # 「他の船と比べる」導線（同条件で 4-5 船宿を一気に並べる）
+        if st.button(
+            "🆚 他の船と比べる",
+            help="同じ魚種・日付で他の船宿を一気に予測してランキング表示します",
+            use_container_width=True,
+        ):
+            st.session_state["_compare_species"] = species
+            st.session_state["_compare_date"] = target_date
+            try:
+                st.switch_page("pages/2_🆚_船宿比較.py")
+            except Exception:
+                st.info("左サイドバーの「船宿比較」ページを開いてください。")
 
     # backtest 知見: ランク (tier) が本命、絶対値は参考
     tier = pred.get("tier", "?")

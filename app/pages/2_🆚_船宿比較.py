@@ -28,11 +28,11 @@ from utils import (
     tier_emoji,
 )
 
-st.set_page_config(page_title="船宿ランキング", page_icon="⚔️", layout="wide")
-st.title("⚔️ 船宿ランキング (vs_other_boats)")
+st.set_page_config(page_title="船宿比較", page_icon="🆚", layout="wide")
+st.title("🆚 船宿比較 — 今日どこの船に乗る？")
 st.caption(
-    "同じ魚種・日付・条件で **複数の船宿** に並列予測を投げ、尾数 / tier 順にランキング表示します。"
-    " 並列実行により 4-5 船宿で ~10-15 秒。"
+    "同じ魚種・日付の条件で **複数の船宿** を一気に予測して、釣果ランクで並べます。"
+    " 4-5 船宿で 10-15 秒。"
 )
 
 # ── 入力フォーム ─────────────────────────────────────────
@@ -41,37 +41,54 @@ if not all_boats:
     st.error("十分なデータがある船宿がありません。Page 4 から取り込みを実行してください。")
     st.stop()
 
+# 単発予測ページからの導線で species/date を prefill
+species_list = list_species(min_trips=10)
+prefill_species = st.session_state.get("_compare_species")
+if prefill_species and prefill_species in species_list:
+    default_sp_idx = species_list.index(prefill_species)
+elif "マダイ" in species_list:
+    default_sp_idx = species_list.index("マダイ")
+else:
+    default_sp_idx = 0
+prefill_date = st.session_state.get("_compare_date") or (date.today() + timedelta(days=1))
+
 with st.form("ranking_form"):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        species_list = list_species(min_trips=10)
-        default_idx = species_list.index("マダイ") if "マダイ" in species_list else 0
-        species = st.selectbox("魚種", species_list, index=default_idx)
-        target_date = st.date_input("対象日", value=date.today() + timedelta(days=1))
+        species = st.selectbox("魚種", species_list, index=default_sp_idx)
+        target_date = st.date_input("対象日", value=prefill_date)
 
     with col2:
-        hour = st.number_input("出船時刻 (hour)", min_value=0, max_value=23, value=6)
+        hour = st.number_input("出船時刻", min_value=0, max_value=23, value=6)
         anglers = st.number_input("乗船人数", min_value=1, max_value=20, value=6)
 
     with col3:
         tackle = st.text_input("仕掛け (任意)", value="タイラバ" if species == "マダイ" else "")
         providers = available_providers()
-        provider = st.selectbox("LLM provider", providers, index=0)
+        provider = st.selectbox("LLM プロバイダ", providers, index=0)
 
     st.divider()
-    col_a, col_b = st.columns([3, 1])
-    with col_a:
-        boats_selected = st.multiselect(
-            "比較対象の船宿（最大 5 件推奨）",
-            all_boats,
-            default=all_boats[:4],
-        )
-    with col_b:
-        parallel = st.checkbox("並列実行", value=True, help="OFF にすると順次実行（デバッグ用）")
-        max_workers = st.number_input("並列数", min_value=1, max_value=8, value=4)
+    boats_selected = st.multiselect(
+        "比較する船宿（最大 5 件推奨）",
+        all_boats,
+        default=all_boats[:4],
+    )
 
-    submitted = st.form_submit_button("⚔️ ランキング作成", use_container_width=True)
+    with st.expander("⚙️ 詳細設定（普段はそのままで OK）"):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            parallel = st.checkbox("並列実行", value=True,
+                                    help="OFF にすると順次実行（デバッグ用）")
+        with col_b:
+            max_workers = st.number_input("並列数", min_value=1, max_value=8, value=4)
+
+    submitted = st.form_submit_button("🆚 船宿を比較する", use_container_width=True)
+
+# prefill 消費後はクリア（次回フォーム描画時にユーザー選択を尊重）
+for k in ("_compare_species", "_compare_date"):
+    if k in st.session_state:
+        del st.session_state[k]
 
 
 # ── 1 船宿の予測タスク ────────────────────────────────────
