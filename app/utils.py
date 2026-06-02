@@ -198,3 +198,119 @@ def signal_label_ja(signal: str) -> str:
     if not signal:
         return "?"
     return _SIGNAL_LABELS_JA.get(signal, signal)
+
+
+# ============================================================
+# 出船可否判定（台風/強風/高波で予測値より先に欠航見込みを伝える）
+# ============================================================
+
+def boat_status(cond: dict[str, Any]) -> dict[str, Any]:
+    """当日コンディションから「出船できそうか」を判定。
+
+    Args:
+        cond: _readable_conditions() の出力（風速 m/s, 波高 m 等）
+
+    Returns:
+        {
+            "level":    "ok" | "caution" | "hard" | "no_go",
+            "emoji":    "☀️" / "✅" / "⚠️" / "⛔",
+            "label":    "ベタ凪" / "出船可能" / "厳しい海況" / "出船困難",
+            "reasons":  ["風速 22 m/s（台風級）", "波高 2.5 m"],
+            "summary":  "風速 22 m/s と波高 2.5 m。多くの船宿は欠航見込み。",
+        }
+    """
+    if not cond:
+        return {
+            "level": "unknown", "emoji": "❓", "label": "判定不能",
+            "reasons": [], "summary": "コンディション情報なし",
+        }
+    wind = cond.get("wind_speed_10m")
+    gust = cond.get("wind_gusts_10m")
+    wave = cond.get("wave_height")
+    swell = cond.get("swell_wave_height")
+    precip = cond.get("precipitation")
+
+    reasons_no_go: list[str] = []
+    reasons_hard: list[str] = []
+    reasons_caution: list[str] = []
+
+    # 風速 m/s 基準（一般的な釣り船の出船可否目安）
+    try:
+        ws = float(wind) if wind is not None else None
+    except (TypeError, ValueError):
+        ws = None
+    if ws is not None:
+        if ws >= 15:
+            reasons_no_go.append(f"風速 {ws:.0f} m/s（台風級）")
+        elif ws >= 12:
+            reasons_no_go.append(f"風速 {ws:.0f} m/s（猛烈な強風）")
+        elif ws >= 8:
+            reasons_hard.append(f"風速 {ws:.0f} m/s（強風）")
+        elif ws >= 4:
+            reasons_caution.append(f"風速 {ws:.0f} m/s")
+
+    # 突風
+    try:
+        gs = float(gust) if gust is not None else None
+    except (TypeError, ValueError):
+        gs = None
+    if gs is not None and gs >= 18:
+        reasons_no_go.append(f"突風 {gs:.0f} m/s")
+
+    # 波高 m 基準
+    try:
+        wv = float(wave) if wave is not None else None
+    except (TypeError, ValueError):
+        wv = None
+    if wv is not None:
+        if wv >= 2.5:
+            reasons_no_go.append(f"波高 {wv:.1f} m")
+        elif wv >= 1.5:
+            reasons_hard.append(f"波高 {wv:.1f} m")
+        elif wv >= 1.0:
+            reasons_caution.append(f"波高 {wv:.1f} m")
+
+    # うねり
+    try:
+        sw = float(swell) if swell is not None else None
+    except (TypeError, ValueError):
+        sw = None
+    if sw is not None and sw >= 2.0:
+        reasons_no_go.append(f"うねり {sw:.1f} m")
+
+    # 降水
+    try:
+        pp = float(precip) if precip is not None else None
+    except (TypeError, ValueError):
+        pp = None
+    if pp is not None and pp >= 20:
+        reasons_hard.append(f"降水 {pp:.0f} mm/h（豪雨）")
+
+    if reasons_no_go:
+        return {
+            "level": "no_go", "emoji": "⛔",
+            "label": "出船困難",
+            "reasons": reasons_no_go + reasons_hard + reasons_caution,
+            "summary": "多くの船宿は欠航見込み。実出船できない可能性が高いため、"
+                       "予測値は参考程度に。",
+        }
+    if reasons_hard:
+        return {
+            "level": "hard", "emoji": "⚠️",
+            "label": "厳しい海況",
+            "reasons": reasons_hard + reasons_caution,
+            "summary": "出船はできても船酔い注意、ポイント制限あり。",
+        }
+    if reasons_caution:
+        return {
+            "level": "caution", "emoji": "✅",
+            "label": "出船可能（やや風あり）",
+            "reasons": reasons_caution,
+            "summary": "釣り日和。コンディションに大きな問題なし。",
+        }
+    return {
+        "level": "ok", "emoji": "☀️",
+        "label": "ベタ凪",
+        "reasons": [],
+        "summary": "穏やかな海。絶好の釣り日和。",
+    }

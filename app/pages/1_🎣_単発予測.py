@@ -7,6 +7,7 @@ import streamlit as st
 
 from utils import (
     available_providers,
+    boat_status,
     boat_to_site,
     confidence_badge,
     default_provider,
@@ -108,6 +109,27 @@ if submitted:
     except Exception as e:
         pid = None
         st.caption(f"⚠️ 予測ログ保存失敗 (機能は影響なし): {e}")
+
+    # ── 出船可否バナー（風速/波高ベース、予測の前に出す） ──
+    status = boat_status(cond)
+    if status["level"] == "no_go":
+        st.error(
+            f"## {status['emoji']} {status['label']}\n"
+            f"**{' / '.join(status['reasons'])}**  \n"
+            f"{status['summary']}"
+        )
+    elif status["level"] == "hard":
+        st.warning(
+            f"### {status['emoji']} {status['label']}\n"
+            f"{' / '.join(status['reasons'])} — {status['summary']}"
+        )
+    elif status["level"] == "caution":
+        st.info(
+            f"{status['emoji']} **{status['label']}** — "
+            f"{' / '.join(status['reasons']) if status['reasons'] else status['summary']}"
+        )
+    elif status["level"] == "ok":
+        st.success(f"{status['emoji']} **{status['label']}** — {status['summary']}")
 
     # ── メイン結果 ─────────────────────────────────────
     st.divider()
