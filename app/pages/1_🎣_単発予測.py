@@ -175,36 +175,36 @@ if submitted:
         else:
             st.caption("(なし)")
 
-    # ── 相対指標 ───────────────────────────────────────
+    # ── この船の普段との比較 ─────────────────────────────
     vs_avg = pred.get("vs_boat_avg")
     vs_med = pred.get("vs_boat_median")
     if vs_avg is not None or vs_med is not None:
-        st.markdown("### 📊 自船比")
+        st.markdown("### 📊 この船の普段と比べると")
         cc1, cc2 = st.columns(2)
         with cc1:
             if vs_avg is not None:
-                st.metric("vs 自船平均", f"{vs_avg:.2f}x")
+                st.metric(
+                    "普段の平均と比べて",
+                    f"{vs_avg:.2f} 倍",
+                    help="1.0 が普段並み、1.5 なら 5割増の予測、0.5 なら半分",
+                )
         with cc2:
             if vs_med is not None:
-                st.metric("vs 自船中央値", f"{vs_med:.2f}x")
+                st.metric(
+                    "普段の中央値と比べて",
+                    f"{vs_med:.2f} 倍",
+                )
 
     # ── 実績フィードバック誘導 ──────────────────────────
     if pid:
         st.divider()
-        st.markdown("### 🎯 実績フィードバック")
+        st.markdown("### 🎯 出船後の結果を教えてください")
         st.caption(
-            "この予測は `prediction_id` 付きで記録されています。"
-            "出船後、実際の竿頭釣果を入力すると **運用真の精度** に反映されます。"
-            "（注: Streamlit Cloud はファイルが ephemeral なので、長期保管したい場合は fly.io デプロイへ）"
+            "実際に何尾釣れたかを教えてくれると、このアプリの精度が改善されます。"
         )
-        col_pid, col_fb = st.columns([3, 1])
-        with col_pid:
-            st.code(f"prediction_id = {pid}", language="text")
-        with col_fb:
-            st.markdown("[📈 精度評価ページ で入力 →](./精度評価)")
 
-        # その場で素早く実績登録できるショートカット
-        with st.expander("⚡ 出船後の実績をその場で登録", expanded=False):
+        # その場で素早く実績登録できるショートカット（最初から開いておく）
+        with st.expander("⚡ 釣果を入力する", expanded=False):
             quick_actual = st.number_input(
                 "実際の竿頭釣果 (個人最大、尾)",
                 min_value=0.0, value=0.0, step=1.0,
@@ -237,10 +237,69 @@ if submitted:
                 except Exception as e:
                     st.error(f"失敗: {e}")
 
-    # ── 詳細情報（expander） ──────────────────────────
-    with st.expander("🔍 船宿×魚種の過去統計"):
+    # ── 詳細情報（人が読める要約に置換） ──────────────────
+    st.divider()
+    st.markdown("### 📊 この予測の根拠データ")
+
+    # 過去統計を bullet で
+    n_trips = ctx.get("n_trips_total") or ctx.get("n_trips") or 0
+    p_median = ctx.get("median")
+    p_max = ctx.get("max")
+    p_mean = ctx.get("mean")
+    if n_trips:
+        st.markdown(
+            f"**{boat} で {species} を狙ったのは過去 {n_trips} 回**:"
+        )
+        bullets = []
+        if p_median is not None:
+            bullets.append(f"竿頭の中央値: **{p_median} 尾**（半分の日はこの値以下）")
+        if p_mean is not None:
+            bullets.append(f"竿頭の平均: **{round(p_mean, 1)} 尾**")
+        if p_max is not None:
+            bullets.append(f"過去最大: **{int(p_max)} 尾**（大漁日の天井）")
+        recent = ctx.get("recent_5_trips") or []
+        if recent:
+            recent_str = ", ".join(
+                f"{r.get('datetime','?')[:10]} → {r.get('top_per_angler', '?')}尾"
+                for r in recent[-3:]
+            )
+            bullets.append(f"直近 3 回の竿頭: {recent_str}")
+        for b in bullets:
+            st.markdown(f"- {b}")
+    else:
+        st.caption("過去データなし")
+
+    # 当日コンディションを bullet で
+    st.markdown("**今日のコンディション**:")
+    if cond:
+        cond_lines = []
+        if "sea_surface_temperature" in cond:
+            cond_lines.append(f"🌊 海面水温 **{cond['sea_surface_temperature']}℃**")
+        if "wave_height" in cond:
+            cond_lines.append(f"🌊 波高 **{cond['wave_height']} m**")
+        if "wind_speed_10m" in cond:
+            cond_lines.append(f"💨 風速 **{cond['wind_speed_10m']} m/s**")
+        if "tide_phase" in cond:
+            cond_lines.append(f"🌙 潮回り **{cond['tide_phase']}**")
+        if "tide_cm" in cond:
+            cond_lines.append(f"🌊 潮位 **{cond['tide_cm']} cm**")
+        if "moon_phase" in cond:
+            cond_lines.append(f"🌙 月齢 **{cond['moon_phase']}**")
+        if cond_lines:
+            for c in cond_lines:
+                st.markdown(f"- {c}")
+        else:
+            st.caption("コンディション情報なし")
+    else:
+        st.caption("コンディション情報なし")
+
+    # 開発者向け（普段は折りたたみ）
+    with st.expander("🔧 技術情報 (開発者向け)", expanded=False):
+        if pid:
+            st.code(f"prediction_id = {pid}", language="text")
+        st.caption("**過去統計の生データ**")
         st.json(ctx)
-    with st.expander("☁️ 当日コンディション"):
+        st.caption("**当日コンディションの生データ**")
         st.json(cond)
-    with st.expander("🤖 使用モデル情報"):
+        st.caption("**使用モデル**")
         st.json(model_info)
