@@ -177,7 +177,24 @@ def tier_emoji(tier: int) -> str:
 
 
 def confidence_badge(conf: str) -> str:
-    """信頼度を色付きバッジ風文字列で。"""
-    return {"high": "🟢 high", "medium": "🟡 medium", "low": "🔴 low"}.get(
+    """信頼度を色付きバッジ風文字列で（日本語）。"""
+    return {"high": "🟢 高", "medium": "🟡 中", "low": "🔴 低"}.get(
         (conf or "").lower(), conf or "?"
     )
+
+
+# LLM が返す signal_used の機械名を日本語ラベルに変換
+_SIGNAL_LABELS_JA = {
+    "top_per_angler": "竿頭釣果 (本文抽出)",
+    "count_yolo": "YOLO 自動カウント",
+    "total_catch": "船合計釣果",
+    "qualitative": "定性評価",
+    "none": "（なし）",
+}
+
+
+def signal_label_ja(signal: str) -> str:
+    """signal_used の機械名を日本語ラベルへ。未知ならそのまま返す。"""
+    if not signal:
+        return "?"
+    return _SIGNAL_LABELS_JA.get(signal, signal)

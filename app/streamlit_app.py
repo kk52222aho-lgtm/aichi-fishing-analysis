@@ -55,11 +55,16 @@ with col1:
     st.metric("取り込み済 行数", f"{len(df):,}" if not df.empty else "0")
 with col2:
     n_trips = df["datetime"].nunique() if not df.empty else 0
-    st.metric("trip 日付数", f"{n_trips:,}")
+    st.metric("出船日数", f"{n_trips:,}")
 with col3:
-    st.metric("船宿数", len(reg))
+    # registry が空でも catches に船宿があれば数える
+    n_boats = (
+        len(reg) if reg
+        else (df["boat"].nunique() if (not df.empty and "boat" in df.columns) else 0)
+    )
+    st.metric("船宿数", n_boats)
 with col4:
-    st.metric("LLM provider", default_provider() if providers else "❌ none")
+    st.metric("LLM プロバイダ", default_provider() if providers else "❌ なし")
 
 # ── 現状サマリ ─────────────────────────────────────────
 st.divider()
@@ -74,19 +79,21 @@ with left:
             df.groupby("boat")
             .size()
             .sort_values(ascending=False)
-            .reset_index(name="rows")
+            .reset_index(name="行数")
+            .rename(columns={"boat": "船宿"})
         )
         st.dataframe(boat_counts, use_container_width=True, hide_index=True)
 
 with right:
-    st.subheader("魚種別 trip 数 top 10")
+    st.subheader("魚種別 出船日数 top 10")
     if not df.empty:
         sp_counts = (
             df.groupby("species")
             .size()
             .sort_values(ascending=False)
             .head(10)
-            .reset_index(name="trips")
+            .reset_index(name="出船日数")
+            .rename(columns={"species": "魚種"})
         )
         st.dataframe(sp_counts, use_container_width=True, hide_index=True)
 
@@ -95,12 +102,12 @@ st.divider()
 st.subheader("⚙️ システム状態")
 if providers:
     st.success(
-        f"利用可能 LLM provider: **{', '.join(providers)}**（先頭が default）"
+        f"利用可能 LLM プロバイダ: **{', '.join(providers)}**（先頭が default）"
     )
 else:
     st.error(
-        "LLM provider のキーが解決できません。Colab userdata に "
-        "`CEREBRAS_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY` のいずれかを登録してください。"
+        "LLM プロバイダのキーが解決できません。Streamlit Cloud の Secrets に "
+        "`CEREBRAS_API_KEY` または `GROQ_API_KEY` を登録してください。"
     )
 
 # ── ナビゲーション ─────────────────────────────────────

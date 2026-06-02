@@ -14,6 +14,7 @@ from utils import (
     list_sites,
     list_species,
     safe_predict,
+    signal_label_ja,
     tier_emoji,
 )
 from src import predictions_log
@@ -64,7 +65,7 @@ with st.form("predict_form"):
     with col_prov:
         providers = available_providers()
         provider = st.selectbox(
-            "LLM provider",
+            "LLM プロバイダ",
             providers,
             index=0,
             help="先頭が最も TPM が広いプロバイダ。rate limit 時は自動で次の候補に切替されます。",
@@ -130,19 +131,19 @@ if submitted:
             f"{pred.get('predicted_top_per_angler', '?')} 尾",
         )
     with c2:
-        st.metric("confidence", confidence_badge(pred.get("confidence", "?")))
+        st.metric("信頼度", confidence_badge(pred.get("confidence", "?")))
     with c3:
         signal = pred.get("signal_used") or ctx.get("primary_signal") or "?"
-        st.metric("signal_used", signal)
+        st.metric("使用シグナル", signal_label_ja(signal))
 
-    # ── reasoning ─────────────────────────────────────
-    st.markdown("### 💭 reasoning")
-    st.info(pred.get("reasoning", "(reasoning なし)"))
+    # ── 予測根拠 ─────────────────────────────────────
+    st.markdown("### 💭 予測の根拠")
+    st.info(pred.get("reasoning", "(根拠なし)"))
 
-    # ── key/risk factors ──────────────────────────────
+    # ── プラス要因 / リスク要因 ────────────────────────
     col_k, col_r = st.columns(2)
     with col_k:
-        st.markdown("### ✅ key factors")
+        st.markdown("### ✅ プラス要因")
         kf = pred.get("key_factors", [])
         if kf:
             for f in kf:
@@ -150,7 +151,7 @@ if submitted:
         else:
             st.caption("(なし)")
     with col_r:
-        st.markdown("### ⚠️ risk factors")
+        st.markdown("### ⚠️ リスク要因")
         rf = pred.get("risk_factors", [])
         if rf:
             for f in rf:
@@ -221,9 +222,9 @@ if submitted:
                     st.error(f"失敗: {e}")
 
     # ── 詳細情報（expander） ──────────────────────────
-    with st.expander("🔍 boat_context (過去統計)"):
+    with st.expander("🔍 船宿×魚種の過去統計"):
         st.json(ctx)
     with st.expander("☁️ 当日コンディション"):
         st.json(cond)
-    with st.expander("🤖 モデル情報"):
+    with st.expander("🤖 使用モデル情報"):
         st.json(model_info)
