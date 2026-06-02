@@ -113,15 +113,16 @@ if submitted:
     st.divider()
     st.subheader(f"📋 予測結果: {boat} × {species} × {target_date}")
 
-    # backtest 知見: tier が本命、絶対値は参考
+    # backtest 知見: ランク (tier) が本命、絶対値は参考
     tier = pred.get("tier", "?")
     tier_label = pred.get("tier_label", "?")
     st.markdown(
-        f"## {tier_emoji(tier)} tier {tier} — **{tier_label}**",
+        f"## {tier_emoji(tier)} ランク {tier} — **{tier_label}**",
     )
     st.caption(
-        "★ backtest 知見: tier ±1 一致は **55-65%** で実用線。"
-        " 絶対値（尾数）は参考値（マダイ MAE 16 尾、本質的にばらつき大）。"
+        "★ **ランクの見方**: 1 厳しい / 2 やや渋い / 3 普通 / 4 好調 / 5 大漁。"
+        " バックテスト実測でランク ±1 以内一致 **55-65%** で実用線。"
+        " 絶対値（尾数）は参考（マダイで平均誤差 16 尾、本質的にばらつき大）。"
     )
 
     c1, c2, c3 = st.columns(3)

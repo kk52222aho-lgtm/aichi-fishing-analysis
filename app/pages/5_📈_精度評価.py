@@ -52,22 +52,31 @@ if log_summary.get("n_total", 0) == 0:
 else:
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("総予測数", log_summary.get("n_total", 0))
-    c2.metric("実績紐付け済", log_summary.get("n_with_feedback", 0))
+    c2.metric("実績入力済", log_summary.get("n_with_feedback", 0))
     c3.metric(
-        "feedback 率",
+        "実績入力率",
         f"{(log_summary.get('feedback_rate') or 0) * 100:.0f}%",
     )
     if "mae" in log_summary:
-        c4.metric("運用 MAE", f"{log_summary['mae']} 尾")
+        c4.metric("運用 平均誤差 (尾)", f"{log_summary['mae']}")
     if "bias" in log_summary:
-        c5.metric("bias", f"{log_summary['bias']:+.2f}")
+        c5.metric(
+            "偏り (尾)", f"{log_summary['bias']:+.2f}",
+            help="+ は予測過大、- は予測過小",
+        )
 
     # engine 別内訳
     by_eng = log_summary.get("by_engine") or {}
     if by_eng:
-        st.markdown("**Engine 別 (実績紐付け済みのみ)**")
+        st.markdown("**予測エンジン別 (実績入力済みのみ)**")
+        eng_label = {"llm": "LLM 予測", "statistical": "統計モデル"}
         eng_rows = [
-            {"engine": k, "n": v["n"], "mae": v["mae"], "bias": v["bias"]}
+            {
+                "予測エンジン": eng_label.get(k, k),
+                "件数": v["n"],
+                "平均誤差(尾)": v["mae"],
+                "偏り(尾)": v["bias"],
+            }
             for k, v in by_eng.items()
         ]
         st.dataframe(pd.DataFrame(eng_rows), hide_index=True, use_container_width=True)
@@ -180,7 +189,7 @@ else:
         summaries.append(s)
 
     if summaries:
-        # 主要メトリクスだけ表に
+        # 主要メトリクスだけ表に（列名は日本語化）
         cols = [
             "species", "kind", "model_label", "n_predictions",
             "model_mae", "baseline_mae", "vs_baseline_pct",
@@ -188,9 +197,21 @@ else:
         ]
         df_sum = pd.DataFrame(summaries)[
             [c for c in cols if c in summaries[0]]
-        ]
-        df_sum = df_sum.sort_values(["species", "kind"]).reset_index(drop=True)
-        st.dataframe(df_sum, use_container_width=True, hide_index=True)
+        ].sort_values(["species", "kind"]).reset_index(drop=True)
+        df_sum_display = df_sum.rename(columns={
+            "species": "魚種",
+            "kind": "種別",
+            "model_label": "モデル",
+            "n_predictions": "予測数",
+            "model_mae": "誤差(尾)",
+            "baseline_mae": "単純平均の誤差",
+            "vs_baseline_pct": "単純平均比",
+            "correlation": "相関",
+            "tier_exact_match": "ランク完全一致",
+            "tier_within_1": "ランク±1以内",
+            "bias": "偏り(尾)",
+        })
+        st.dataframe(df_sum_display, use_container_width=True, hide_index=True)
 
         # ── 改善率の可視化 ─────────────────────────
         impr_df = df_sum[df_sum["vs_baseline_pct"].notna()].copy()
@@ -199,8 +220,12 @@ else:
             st.bar_chart(
                 impr_df.set_index("label")["vs_baseline_pct"],
                 height=250,
+                y_label="単純平均比",
             )
-            st.caption("vs_baseline_pct: + なら baseline より改善、- なら悪化（平均値予測同等）")
+            st.caption(
+                "**単純平均比**: + なら「過去の平均値を返すだけ」より良い、- なら同等以下。"
+                "0 が「単純平均と同じ」基準線。"
+            )
 
 # ── 個別結果の詳細閲覧 ─────────────────────────────────────
 st.divider()
@@ -216,17 +241,18 @@ if existing:
     if s and "error" not in s:
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.metric("N (予測数)", s.get("n_predictions"))
+            st.metric("予測数", s.get("n_predictions"))
         with c2:
-            st.metric("MAE", f"{s.get('model_mae')} 尾")
+            st.metric("平均誤差 (尾)", f"{s.get('model_mae')}")
         with c3:
             improvement = s.get("vs_baseline_pct")
             st.metric(
-                "vs baseline",
+                "単純平均比",
                 f"{improvement * 100:+.1f}%" if improvement is not None else "-",
+                help="+ なら単純平均より良い、- なら同等以下",
             )
         with c4:
-            st.metric("tier ±1 一致", f"{s.get('tier_within_1', 0) * 100:.0f}%")
+            st.metric("ランク ±1 一致", f"{s.get('tier_within_1', 0) * 100:.0f}%")
 
     # 時系列グラフ
     if "actual" in df_detail.columns and "predicted" in df_detail.columns:
