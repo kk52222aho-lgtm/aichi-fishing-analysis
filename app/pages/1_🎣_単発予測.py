@@ -11,6 +11,7 @@ from utils import (
     boat_to_site,
     confidence_badge,
     default_provider,
+    find_past_actual,
     list_boats,
     list_sites,
     list_species,
@@ -206,6 +207,80 @@ if submitted:
                 st.markdown(f"- {f}")
         else:
             st.caption("(なし)")
+
+    # ── 過去日付なら実績と並べて「当たったか」を可視化 ───
+    if target_date < date.today():
+        actual = find_past_actual(boat, target_date, species)
+        st.divider()
+        st.markdown("### 🔍 予測 vs 実績の答え合わせ")
+        if not actual:
+            st.info(
+                f"{target_date} は過去日付ですが、{boat} × {species} の "
+                "実績データがありません（船宿が当日出船しなかった、または "
+                "ブログ未スクレイプの可能性）。"
+            )
+        else:
+            pred_val = pred.get("predicted_top_per_angler")
+            actual_top = actual.get("top_per_angler")
+            actual_total = actual.get("total_catch")
+            actual_qual = actual.get("qualitative")
+            entry_title = actual.get("entry_title")
+
+            cc1, cc2, cc3 = st.columns(3)
+            with cc1:
+                st.metric(
+                    "予測した竿頭",
+                    f"{pred_val} 尾" if pred_val is not None else "?",
+                )
+            with cc2:
+                if actual_top is not None:
+                    st.metric(
+                        "実際の竿頭",
+                        f"{int(actual_top) if actual_top.is_integer() else actual_top} 尾",
+                    )
+                else:
+                    st.metric("実際の竿頭", "数字未記録")
+            with cc3:
+                if pred_val is not None and actual_top is not None:
+                    diff = float(pred_val) - float(actual_top)
+                    sign = "+" if diff > 0 else ""
+                    st.metric("誤差", f"{sign}{diff:.1f} 尾",
+                              help="+ なら予測過大、- なら予測過小")
+                else:
+                    st.metric("誤差", "—")
+
+            # 当たり判定（ざっくり）
+            if pred_val is not None and actual_top is not None:
+                err = abs(float(pred_val) - float(actual_top))
+                if err <= 1:
+                    st.success("🎯 **ピタリ的中** — 誤差 1 尾以内")
+                elif err <= 3:
+                    st.success("👍 **ほぼ当たり** — 誤差 3 尾以内")
+                elif err <= 5:
+                    st.info("🤔 **まあまあ** — 誤差 5 尾以内")
+                else:
+                    st.warning(f"😅 **ハズレ** — 誤差 {err:.0f} 尾")
+
+            # 補足情報
+            extras = []
+            if actual_total is not None:
+                extras.append(f"船全体合計: **{int(actual_total)}** 尾")
+            if actual_qual:
+                extras.append(f"定性記録: **{actual_qual}**")
+            if entry_title:
+                extras.append(f"記事: {entry_title}")
+            if extras:
+                for e in extras:
+                    st.caption(f"📌 {e}")
+
+            # 注意書き: 予測時に当日データを参照している可能性
+            st.caption(
+                "ℹ️ **注**: この LLM 予測は学習用 catches.csv 全件を見て生成して"
+                "いるため、当日の実績も入力に含まれている可能性があります。"
+                "厳密な「リアル運用シミュレーション」は **精度評価ページ** の "
+                "walk-forward backtest を参照してください（trip i は trip[0..i-1] "
+                "までしか見ないルールで集計）。"
+            )
 
     # ── この船の普段との比較 ─────────────────────────────
     vs_avg = pred.get("vs_boat_avg")

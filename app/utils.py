@@ -176,6 +176,35 @@ def tier_emoji(tier: int) -> str:
     return {1: "😣", 2: "😕", 3: "😐", 4: "😊", 5: "🎉"}.get(int(tier or 0), "❓")
 
 
+def find_past_actual(boat: str, target_date, species: str) -> Optional[dict[str, Any]]:
+    """catches.csv から該当 (boat, date, species) の実績を集計して返す。
+
+    過去日付の予測検証用。複数 trip があれば top_per_angler は max、
+    total_catch は sum。
+    """
+    df = load_catches()
+    if df.empty or "datetime" not in df.columns:
+        return None
+    mask = (
+        (df["boat"] == boat)
+        & (df["datetime"].dt.date == target_date)
+        & (df["species"] == species)
+    )
+    rows = df[mask]
+    if rows.empty:
+        return None
+    out: dict[str, Any] = {"n_rows": len(rows)}
+    if "top_per_angler" in rows.columns and rows["top_per_angler"].notna().any():
+        out["top_per_angler"] = float(rows["top_per_angler"].max())
+    if "total_catch" in rows.columns and rows["total_catch"].notna().any():
+        out["total_catch"] = float(rows["total_catch"].sum())
+    if "qualitative" in rows.columns and rows["qualitative"].notna().any():
+        out["qualitative"] = str(rows["qualitative"].iloc[0])
+    if "entry_title" in rows.columns and rows["entry_title"].notna().any():
+        out["entry_title"] = str(rows["entry_title"].iloc[0])
+    return out
+
+
 def confidence_badge(conf: str) -> str:
     """信頼度を色付きバッジ風文字列で（日本語）。"""
     return {"high": "🟢 高", "medium": "🟡 中", "low": "🔴 低"}.get(
