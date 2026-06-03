@@ -27,13 +27,13 @@ def get_weekly_outlook(
     morning_hours: tuple[int, ...] = (5, 6, 7, 8),
 ) -> list[dict[str, Any]]:
     """site の次の 7 日間、朝の時間帯平均から boat_status を返す。"""
-    site_obj = config.SITES.get(site_code)
-    if not site_obj:
+    if site_code not in config.SITES:
         return []
     today = date.today()
     end = today + timedelta(days=7)
     try:
-        df = weather_fetcher.fetch_and_cache(site_obj, today, end)
+        # fetch_and_cache は site code (str) を受け取る
+        df = weather_fetcher.fetch_and_cache(site_code, today, end)
     except Exception as e:
         st.error(f"気象データ取得失敗 ({site_code}): {e}")
         return []
