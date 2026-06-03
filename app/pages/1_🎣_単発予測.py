@@ -113,8 +113,9 @@ if submitted:
     # ── 出船可否バナー（風速/波高ベース、予測の前に出す） ──
     status = boat_status(cond)
     if status["level"] == "no_go":
-        st.error(
-            f"## {status['emoji']} {status['label']}\n"
+        # error (赤) ではなく warning (黄) に。実測で空振り多めの判定だったため
+        st.warning(
+            f"### {status['emoji']} {status['label']}\n"
             f"**{' / '.join(status['reasons'])}**  \n"
             f"{status['summary']}"
         )
@@ -131,7 +132,7 @@ if submitted:
     elif status["level"] == "ok":
         st.success(f"{status['emoji']} **{status['label']}** — {status['summary']}")
 
-    # ── 出船困難時は予測を控えめに、矛盾を回避 ────────────
+    # ── no_go 時は予測を控えめに、矛盾を回避 ────────────
     is_no_go = status["level"] == "no_go"
 
     # ── メイン結果 ─────────────────────────────────────
@@ -139,9 +140,9 @@ if submitted:
     head_col, cta_col = st.columns([3, 1])
     with head_col:
         if is_no_go:
-            st.subheader(f"📋 釣果予測 (※出船できれば): {boat} × {species} × {target_date}")
+            st.subheader(f"📋 釣果予測 (※船宿に欠航確認推奨): {boat} × {species} × {target_date}")
             st.caption(
-                "⛔ 海況が悪いため**実出船は困難**と判定されています。"
+                "🚩 上の通り船宿の判断が分かれる海況なので、**出船予定なら船宿に電話確認**を。"
                 "以下の予測は「もし出船できれば」の参考値です。"
             )
         else:

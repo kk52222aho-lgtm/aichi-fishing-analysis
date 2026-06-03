@@ -288,18 +288,19 @@ def boat_status(cond: dict[str, Any]) -> dict[str, Any]:
 
     if reasons_no_go:
         return {
-            "level": "no_go", "emoji": "⛔",
-            "label": "出船困難",
+            "level": "no_go", "emoji": "🚩",
+            "label": "多くの船宿が判断に迷う海況",
             "reasons": reasons_no_go + reasons_hard + reasons_caution,
-            "summary": "多くの船宿は欠航見込み。実出船できない可能性が高いため、"
-                       "予測値は参考程度に。",
+            "summary": "強風・高波・突風で **船宿によって出船判断が分かれます**。"
+                       "出船予定なら船宿に**欠航確認の電話**を強く推奨。"
+                       "（実測検証: この判定は厳しめに振れる傾向あり）",
         }
     if reasons_hard:
         return {
             "level": "hard", "emoji": "⚠️",
             "label": "厳しい海況",
             "reasons": reasons_hard + reasons_caution,
-            "summary": "出船はできても船酔い注意、ポイント制限あり。",
+            "summary": "出船はできても船酔い注意、ポイント制限がかかる可能性。",
         }
     if reasons_caution:
         return {
