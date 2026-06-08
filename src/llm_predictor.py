@@ -431,7 +431,12 @@ def compute_blowout_probability(
 
     blowout_mask = similar[label_column] >= threshold
     blowout_count = int(blowout_mask.sum())
-    probability = blowout_count / len(similar)
+    base_probability = blowout_count / len(similar)
+
+    # 直近 7d / 14d 活性で補正
+    adjusted_probability, adj_reason = _adjust_prob_with_recent(
+        base_probability, past, pd.Timestamp(target_dt), threshold, label_column,
+    )
 
     # 直近の大漁日（上位 3 件）
     big_days = similar[blowout_mask].sort_values("datetime", ascending=False)
@@ -444,7 +449,9 @@ def compute_blowout_probability(
         })
 
     return {
-        "probability": round(probability, 3),
+        "probability": round(adjusted_probability, 3),
+        "base_probability": round(base_probability, 3),
+        "adjustment": adj_reason,
         "threshold": round(threshold, 1),
         "n_similar": int(len(similar)),
         "n_blowout_in_similar": blowout_count,
@@ -454,22 +461,47 @@ def compute_blowout_probability(
     }
 
 
+def _adjust_prob_with_recent(
+    base_prob: float, past: pd.DataFrame, target_dt: pd.Timestamp,
+    threshold: float, label_column: str = "top_per_angler",
+) -> tuple[float, str]:
+    """直近 7d / 14d の species-wide 活性を見て base_prob を補正。
+
+    Returns:
+        (調整後確率, 補正理由ラベル)
+    """
+    recent_7d = past[past["datetime"] >= target_dt - pd.Timedelta(days=7)]
+    recent_14d = past[past["datetime"] >= target_dt - pd.Timedelta(days=14)]
+
+    has_7d_blowout = (recent_7d[label_column] >= threshold).any()
+    has_14d_blowout = (recent_14d[label_column] >= threshold).any()
+    n_recent_14d = len(recent_14d)
+
+    if has_7d_blowout:
+        return min(1.0, base_prob + 0.25), "直近 7d に大漁日あり (+25%)"
+    if has_14d_blowout:
+        return min(1.0, base_prob + 0.12), "直近 14d に大漁日あり (+12%)"
+    if n_recent_14d >= 3:
+        # 3 trip 以上活動あるのに大漁無し = cold streak
+        return max(0.0, base_prob - 0.10), "直近 14d cold streak (-10%)"
+    return base_prob, "補正なし (recent 情報少)"
+
+
 def backtest_blowout_probability(
     species: str,
     integrated_path: Optional[Path | str] = None,
     label_column: str = "top_per_angler",
     threshold_quantile: float = 0.75,
     min_history: int = 5,
+    use_recent_adjustment: bool = True,
 ) -> pd.DataFrame:
     """大漁日確率を過去 trip で再現し、calibration / 的中率を測定する。
 
     各 trip i に対して:
       - 過去 trip 0..i-1 のみ参照
       - 閾値 = 過去の p75 (= 大漁定義もリアルタイム化)
-      - 類似日 (同月±1) のうち閾値超過比率 = 予測確率
-      - 実際の trip i の値が閾値以上か = 正解
-
-    未来データを一切使わないので、リアル運用シミュレーションになる。
+      - base = 類似日 (同月±1) のうち閾値超過比率
+      - 直近 7d / 14d の活性で補正 (+25% / +12% / -10%)
     """
     ipath = Path(integrated_path) if integrated_path else config.INTEGRATED_DIR / "integrated.parquet"
     df = pd.read_parquet(ipath) if ipath.suffix == ".parquet" else pd.read_csv(ipath)
@@ -504,14 +536,25 @@ def backtest_blowout_probability(
 
         n_similar = len(similar)
         n_blowout = int((similar[label_column] >= threshold).sum())
-        prob = n_blowout / n_similar
+        base_prob = n_blowout / n_similar
+
+        if use_recent_adjustment:
+            adjusted_prob, adj_reason = _adjust_prob_with_recent(
+                base_prob, past, target_dt, threshold, label_column,
+            )
+        else:
+            adjusted_prob = base_prob
+            adj_reason = "補正無効"
+
         actually_blowout = bool(actual >= threshold)
 
         rows.append({
             "datetime": target_dt,
             "actual": actual,
             "threshold": round(threshold, 1),
-            "predicted_prob": round(prob, 3),
+            "base_prob": round(base_prob, 3),
+            "predicted_prob": round(adjusted_prob, 3),
+            "adjustment": adj_reason,
             "actually_blowout": actually_blowout,
             "n_similar": n_similar,
             "n_blowout_in_similar": n_blowout,
@@ -840,7 +883,8 @@ def _post_process(llm_out: dict, stats: dict) -> dict:
 # プロンプトや入力データの解釈が変わるたびにバンプしてキャッシュを無効化する
 # v1 -> v2: 風速を km/h -> m/s 換算してから LLM に渡すよう変更 (2026-06-02)
 # v2 -> v3: 大漁日確率を result に含めるよう拡張 (2026-06-03)
-_CACHE_VERSION = "v3"
+# v3 -> v4: 直近 7d/14d activity で確率を補正、result に base_probability/adjustment 追加
+_CACHE_VERSION = "v4"
 
 
 def _cache_path(site: str, species: str, target_date: date, hour: int,
