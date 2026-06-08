@@ -173,6 +173,45 @@ if submitted:
         " 尾数は参考値（傾向を見る指標であり、ピタリ賞ではないです）。"
     )
 
+    # ── 🎣 大漁日確率 ─────────────────────────────────
+    blowout = result.get("blowout") or {}
+    prob = blowout.get("probability")
+    if prob is not None:
+        threshold = blowout.get("threshold", 0)
+        n_similar = blowout.get("n_similar", 0)
+        n_blowout = blowout.get("n_blowout_in_similar", 0)
+        prob_pct = prob * 100
+
+        if prob_pct >= 40:
+            box = st.success
+            verdict = "🎯 **大漁日チャンス強め**"
+        elif prob_pct >= 20:
+            box = st.info
+            verdict = "🎣 **大漁日の可能性そこそこあり**"
+        elif prob_pct >= 5:
+            box = st.warning
+            verdict = "🤔 **大漁日は薄い**"
+        else:
+            box = st.warning
+            verdict = "😅 **大漁は期待薄**"
+
+        box(
+            f"### 🎣 大漁日 (**≥ {threshold:.0f} 尾**) の確率: **{prob_pct:.0f}%**  \n"
+            f"{verdict}  \n"
+            f"類似日 {n_similar} 件中 {n_blowout} 件が大漁だった (基準: 全期間 p75)"
+        )
+
+        # 直近の大漁日例
+        examples = blowout.get("recent_blowout_examples") or []
+        if examples:
+            with st.expander(f"📋 過去の大漁日 (直近 {len(examples)} 件)"):
+                for ex in examples:
+                    boat_str = f" @ {ex.get('boat','?')}" if ex.get("boat") else ""
+                    st.markdown(
+                        f"- **{ex.get('date','?')}**{boat_str}: "
+                        f"竿頭 **{int(ex.get('top_per_angler', 0))} 尾**"
+                    )
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric(

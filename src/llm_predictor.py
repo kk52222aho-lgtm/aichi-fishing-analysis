@@ -372,6 +372,88 @@ def find_similar_past_trips(
     }
 
 
+def compute_blowout_probability(
+    species: str,
+    target_dt: pd.Timestamp,
+    integrated_path: Optional[Path | str] = None,
+    label_column: str = "top_per_angler",
+    threshold_quantile: float = 0.75,
+) -> dict[str, Any]:
+    """過去の類似日 (同月±1) から「大漁日確率」を計算。
+
+    大漁の閾値: その魚種の全期間 top_per_angler の p75（= 過去上位 25%）。
+    確率: 類似日 (同月±1) のうち閾値以上だった日の割合。
+
+    マダイのような wide-distribution 魚種で「絶対値予測は外れがちだが、
+    今日が大漁日かどうかだけは当てたい」という釣り人ニーズに応える機能。
+    """
+    ipath = Path(integrated_path) if integrated_path else config.INTEGRATED_DIR / "integrated.parquet"
+    if not ipath.exists():
+        return {"probability": None, "reason": "integrated.parquet なし"}
+
+    df = pd.read_parquet(ipath) if ipath.suffix == ".parquet" else pd.read_csv(ipath)
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    if getattr(df["datetime"].dt, "tz", None) is not None:
+        df["datetime"] = df["datetime"].dt.tz_localize(None)
+    target_dt_naive = pd.Timestamp(target_dt)
+    if getattr(target_dt_naive, "tz", None) is not None:
+        target_dt_naive = target_dt_naive.tz_localize(None)
+
+    sub = df[df["species"] == species].copy()
+    sub = sub.dropna(subset=[label_column])
+    if len(sub) < 5:
+        return {
+            "probability": None,
+            "reason": f"全期間 {len(sub)} 件のみ、判定に必要な 5 件未満",
+        }
+
+    # 大漁閾値: 全期間 p75
+    threshold = float(sub[label_column].quantile(threshold_quantile))
+
+    # 類似日 (同月±1) を過去から抽出
+    past = sub[sub["datetime"] < target_dt_naive].copy()
+    if len(past) < 3:
+        return {
+            "probability": None,
+            "threshold": round(threshold, 1),
+            "reason": f"過去 {len(past)} 件のみ",
+        }
+
+    past["_month"] = past["datetime"].dt.month
+    target_month = int(target_dt.month)
+    months = {((target_month - 2) % 12) + 1, target_month, (target_month % 12) + 1}
+    similar = past[past["_month"].isin(months)]
+    if len(similar) < 3:
+        similar = past
+        scope = "all_past"
+    else:
+        scope = "same_month_±1"
+
+    blowout_mask = similar[label_column] >= threshold
+    blowout_count = int(blowout_mask.sum())
+    probability = blowout_count / len(similar)
+
+    # 直近の大漁日（上位 3 件）
+    big_days = similar[blowout_mask].sort_values("datetime", ascending=False)
+    examples: list[dict[str, Any]] = []
+    for _, r in big_days.head(3).iterrows():
+        examples.append({
+            "date": str(r["datetime"])[:10],
+            "boat": r.get("boat"),
+            label_column: float(r[label_column]),
+        })
+
+    return {
+        "probability": round(probability, 3),
+        "threshold": round(threshold, 1),
+        "n_similar": int(len(similar)),
+        "n_blowout_in_similar": blowout_count,
+        "scope": scope,
+        "recent_blowout_examples": examples,
+        "label_column": label_column,
+    }
+
+
 def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
     """LLM prompt 向けに当日コンディションを抽出。
 
@@ -690,7 +772,8 @@ def _post_process(llm_out: dict, stats: dict) -> dict:
 
 # プロンプトや入力データの解釈が変わるたびにバンプしてキャッシュを無効化する
 # v1 -> v2: 風速を km/h -> m/s 換算してから LLM に渡すよう変更 (2026-06-02)
-_CACHE_VERSION = "v2"
+# v2 -> v3: 大漁日確率を result に含めるよう拡張 (2026-06-03)
+_CACHE_VERSION = "v3"
 
 
 def _cache_path(site: str, species: str, target_date: date, hour: int,
@@ -779,6 +862,9 @@ def predict_with_llm(
     if similar:
         stats["similar_past_trips"] = similar
 
+    # 2.6) 大漁日確率（マダイ等 wide-distribution 魚種の event 検出）
+    blowout = compute_blowout_probability(species=species, target_dt=target_dt)
+
     # 3) プロンプト生成
     prompt = _build_prompt(
         species, target_date, hour, boat, anglers,
@@ -817,6 +903,7 @@ def predict_with_llm(
         "prediction": llm_out,
         "boat_context": stats,
         "conditions": conditions,
+        "blowout": blowout,
         "model": {
             "provider": provider,
             "name": model,
