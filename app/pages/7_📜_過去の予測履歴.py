@@ -11,11 +11,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import importlib
+
 import pandas as pd
 import streamlit as st
 
 from src import config
-from src.llm_predictor import backtest_blowout_probability
+from src import llm_predictor as _llm_mod
+
+# Streamlit Cloud のモジュールキャッシュ対策: 新関数追加直後の deploy で
+# sys.modules に古い src.llm_predictor が残ってると ImportError になるため、
+# 明示的に reload して最新の関数定義を読み込む
+importlib.reload(_llm_mod)
+backtest_blowout_probability = _llm_mod.backtest_blowout_probability
 
 st.set_page_config(page_title="過去の予測履歴", page_icon="📜", layout="wide")
 st.title("📜 過去の予測の答え合わせ")
