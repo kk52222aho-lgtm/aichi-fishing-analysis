@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from src import config
+from src.llm_predictor import backtest_blowout_probability
 
 st.set_page_config(page_title="過去の予測履歴", page_icon="📜", layout="wide")
 st.title("📜 過去の予測の答え合わせ")
@@ -197,7 +198,6 @@ st.caption(
 )
 
 with st.spinner("大漁日確率を過去 trip で再計算中..."):
-    from src.llm_predictor import backtest_blowout_probability
     bo_df = backtest_blowout_probability(selected_species)
 
 if bo_df.empty:
