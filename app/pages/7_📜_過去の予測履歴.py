@@ -185,6 +185,95 @@ for _, row in df.head(show_count).iterrows():
                               delta_color="inverse")
 
 st.divider()
+
+
+# ============================================================
+# 🎣 大漁日確率の検証 (新機能)
+# ============================================================
+st.subheader("🎣 大漁日確率の答え合わせ")
+st.caption(
+    "「もし過去の各日に、当時のデータだけで大漁日確率を計算してたら？」をシミュレーション。"
+    " **未来データは一切使わず**、その時点で見えていた trip だけで予測を再現します。"
+)
+
+with st.spinner("大漁日確率を過去 trip で再計算中..."):
+    from src.llm_predictor import backtest_blowout_probability
+    bo_df = backtest_blowout_probability(selected_species)
+
+if bo_df.empty:
+    st.warning(f"{selected_species} の検証データが不足しています (n < 5)。")
+else:
+    n_total = len(bo_df)
+    n_blowout = int(bo_df["actually_blowout"].sum())
+    mean_prob = float(bo_df["predicted_prob"].mean())
+
+    # トップサマリ
+    sc1, sc2, sc3, sc4 = st.columns(4)
+    sc1.metric("検証対象 trip", n_total)
+    sc2.metric("うち実際の大漁日", f"{n_blowout} 回",
+               help=f"閾値以上だった日数")
+    sc3.metric("実際の大漁日率", f"{n_blowout / n_total * 100:.0f}%")
+    sc4.metric("予測の平均確率", f"{mean_prob * 100:.0f}%",
+               help="全 trip の予測確率平均。実際の大漁日率と近いほどキャリブレーションが良い")
+
+    # Calibration: 予測確率帯ごとの実際の大漁日率
+    st.markdown("**🎯 キャリブレーション**: 予測確率が当てになるか")
+    st.caption(
+        "「予測 30-40%」と言った日のうち、実際に大漁だったのが 30-40% なら完璧にキャリブレートされてる。"
+        " 大きくズレてたら確率が信用できない。"
+    )
+    bins = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.001]
+    labels = ["0-10%", "10-20%", "20-30%", "30-40%", "40-50%",
+              "50-60%", "60-70%", "70-80%", "80-90%", "90-100%"]
+    bo_df["bin"] = pd.cut(bo_df["predicted_prob"], bins=bins, labels=labels, include_lowest=True)
+    cal = bo_df.groupby("bin", observed=True).agg(
+        件数=("actually_blowout", "size"),
+        実際の大漁回数=("actually_blowout", "sum"),
+    ).reset_index()
+    cal["実際の大漁率"] = (cal["実際の大漁回数"] / cal["件数"] * 100).round(0).astype(int).astype(str) + "%"
+    cal.columns = ["予測確率帯", "件数", "実際の大漁回数", "実際の大漁率"]
+    st.dataframe(cal, hide_index=True, use_container_width=True)
+
+    # precision/recall at thresholds
+    st.markdown("**🚨 アラート発令基準ごとの的中率**")
+    st.caption(
+        "**precision**: 「大漁日アラート」を出した日のうち、実際に大漁だった割合。"
+        "**recall**: 全ての実際の大漁日のうち、アラートを出せた割合。"
+    )
+    thresholds = [0.1, 0.2, 0.3, 0.4, 0.5]
+    pr_rows = []
+    for t in thresholds:
+        alert = bo_df["predicted_prob"] >= t
+        tp = int((alert & bo_df["actually_blowout"]).sum())
+        fp = int((alert & ~bo_df["actually_blowout"]).sum())
+        fn = int((~alert & bo_df["actually_blowout"]).sum())
+        precision = tp / (tp + fp) if (tp + fp) > 0 else None
+        recall = tp / (tp + fn) if (tp + fn) > 0 else None
+        pr_rows.append({
+            "アラート閾値": f"≥ {int(t * 100)}%",
+            "アラート発令回数": tp + fp,
+            "うち大漁的中 (TP)": tp,
+            "空振り (FP)": fp,
+            "見逃し (FN)": fn,
+            "precision": f"{precision * 100:.0f}%" if precision is not None else "—",
+            "recall": f"{recall * 100:.0f}%" if recall is not None else "—",
+        })
+    st.dataframe(pd.DataFrame(pr_rows), hide_index=True, use_container_width=True)
+
+    # 個別 trip 一覧 (折りたたみ)
+    with st.expander("📋 1 件ずつ見る (新しい順)"):
+        bo_show = bo_df.sort_values("datetime", ascending=False).copy()
+        bo_show["日付"] = bo_show["datetime"].dt.strftime("%Y-%m-%d")
+        bo_show["予測確率"] = (bo_show["predicted_prob"] * 100).round(0).astype(int).astype(str) + "%"
+        bo_show["実際の竿頭"] = bo_show["actual"].round(0).astype(int)
+        bo_show["閾値"] = bo_show["threshold"].round(0).astype(int)
+        bo_show["大漁?"] = bo_show["actually_blowout"].map({True: "🎯 YES", False: "—"})
+        st.dataframe(
+            bo_show[["日付", "予測確率", "実際の竿頭", "閾値", "大漁?", "n_similar"]],
+            hide_index=True, use_container_width=True,
+        )
+
+st.divider()
 st.caption(
     "📈 もっと細かい指標 (MAE / RMSE / 相関 / ランク一致率) や、自分で新規バックテスト"
     "を回したい場合は **精度評価** ページへ。"

@@ -454,6 +454,73 @@ def compute_blowout_probability(
     }
 
 
+def backtest_blowout_probability(
+    species: str,
+    integrated_path: Optional[Path | str] = None,
+    label_column: str = "top_per_angler",
+    threshold_quantile: float = 0.75,
+    min_history: int = 5,
+) -> pd.DataFrame:
+    """大漁日確率を過去 trip で再現し、calibration / 的中率を測定する。
+
+    各 trip i に対して:
+      - 過去 trip 0..i-1 のみ参照
+      - 閾値 = 過去の p75 (= 大漁定義もリアルタイム化)
+      - 類似日 (同月±1) のうち閾値超過比率 = 予測確率
+      - 実際の trip i の値が閾値以上か = 正解
+
+    未来データを一切使わないので、リアル運用シミュレーションになる。
+    """
+    ipath = Path(integrated_path) if integrated_path else config.INTEGRATED_DIR / "integrated.parquet"
+    df = pd.read_parquet(ipath) if ipath.suffix == ".parquet" else pd.read_csv(ipath)
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    if getattr(df["datetime"].dt, "tz", None) is not None:
+        df["datetime"] = df["datetime"].dt.tz_localize(None)
+
+    sub = df[df["species"] == species].copy()
+    sub = sub.dropna(subset=[label_column])
+    sub = sub.sort_values("datetime").reset_index(drop=True)
+
+    rows: list[dict[str, Any]] = []
+    for _, target in sub.iterrows():
+        target_dt = target["datetime"]
+        actual = float(target[label_column])
+
+        past = sub[sub["datetime"] < target_dt].copy()
+        if len(past) < min_history:
+            continue
+
+        threshold = float(past[label_column].quantile(threshold_quantile))
+
+        past["_month"] = past["datetime"].dt.month
+        target_month = int(target_dt.month)
+        months = {((target_month - 2) % 12) + 1, target_month, (target_month % 12) + 1}
+        similar = past[past["_month"].isin(months)]
+        if len(similar) < 3:
+            similar = past
+            scope = "all_past"
+        else:
+            scope = "same_month"
+
+        n_similar = len(similar)
+        n_blowout = int((similar[label_column] >= threshold).sum())
+        prob = n_blowout / n_similar
+        actually_blowout = bool(actual >= threshold)
+
+        rows.append({
+            "datetime": target_dt,
+            "actual": actual,
+            "threshold": round(threshold, 1),
+            "predicted_prob": round(prob, 3),
+            "actually_blowout": actually_blowout,
+            "n_similar": n_similar,
+            "n_blowout_in_similar": n_blowout,
+            "scope": scope,
+        })
+
+    return pd.DataFrame(rows)
+
+
 def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
     """LLM prompt 向けに当日コンディションを抽出。
 
