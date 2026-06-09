@@ -15,6 +15,8 @@ data/images/*.jpg
 data/images/*.jpeg
 data/images/*.png
 data/scraped/
+# 例外: blog registry はソース管理対象 (新船宿追加時の差分を見たい)
+!data/scraped/_blog_registry.json
 data/models/
 data/predictions_log.csv
 !data/**/.keep
