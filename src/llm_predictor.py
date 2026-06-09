@@ -375,6 +375,7 @@ def find_similar_past_trips(
 def compute_blowout_probability(
     species: str,
     target_dt: pd.Timestamp,
+    boat: Optional[str] = None,
     target_conditions: Optional[dict[str, Any]] = None,
     integrated_path: Optional[Path | str] = None,
     label_column: str = "top_per_angler",
@@ -440,16 +441,23 @@ def compute_blowout_probability(
     )
     # SST 7d 変化 / tide_phase で precision を絞り込み
     if target_conditions:
-        adjusted_probability, cond_reason = _adjust_prob_with_conditions(
+        after_cond, cond_reason = _adjust_prob_with_conditions(
             after_recent, target_conditions, past, threshold, label_column,
         )
-        adj_reason = (
-            f"{recent_reason}; {cond_reason}"
-            if cond_reason != "条件補正なし" else recent_reason
-        )
     else:
-        adjusted_probability = after_recent
-        adj_reason = recent_reason
+        after_cond = after_recent
+        cond_reason = "条件補正なし"
+
+    # 船宿別 prior で更に絞り込み
+    adjusted_probability, boat_reason = _adjust_prob_with_boat(
+        after_cond, boat, past, threshold, label_column,
+    )
+    parts = [recent_reason]
+    if cond_reason and cond_reason != "条件補正なし":
+        parts.append(cond_reason)
+    if boat_reason and boat_reason != "船宿補正なし":
+        parts.append(boat_reason)
+    adj_reason = "; ".join(parts)
 
     # 直近の大漁日（上位 3 件）
     big_days = similar[blowout_mask].sort_values("datetime", ascending=False)
@@ -498,6 +506,54 @@ def _adjust_prob_with_recent(
         # 3 trip 以上活動あるのに大漁無し = cold streak
         return max(0.0, base_prob - 0.10), "直近 14d cold streak (-10%)"
     return base_prob, "補正なし (recent 情報少)"
+
+
+def _adjust_prob_with_boat(
+    prob: float, target_boat: Optional[str], past: pd.DataFrame,
+    threshold: float, label_column: str = "top_per_angler",
+    min_trips: int = 3,
+) -> tuple[float, str]:
+    """過去その船宿での大漁実績で確率を絞り込む。
+
+    species p75 基準なので overall_rate = 0.25 が比較基準。
+    シーブルー型の「大漁実績が偏る船宿」を強く拾うため積極的に補正。
+    """
+    if not target_boat or "boat" not in past.columns:
+        return prob, "船宿補正なし"
+
+    boat_past = past[past["boat"] == target_boat]
+    n_boat = len(boat_past)
+    if n_boat < min_trips:
+        return prob, f"船宿 {target_boat} 過去 {n_boat} 件のみ (補正なし)"
+
+    boat_blowouts = int((boat_past[label_column] >= threshold).sum())
+    boat_rate = boat_blowouts / n_boat
+    overall_rate = 0.25  # p75 基準の定義
+
+    if boat_blowouts == 0 and n_boat >= 5:
+        return (
+            max(0.0, prob * 0.20),
+            f"{target_boat} は過去 {n_boat} 件で大漁ゼロ (×0.2)",
+        )
+    if boat_rate >= overall_rate * 2.0:
+        return (
+            min(1.0, prob * 1.5),
+            f"{target_boat} は大漁実績多数 ({boat_blowouts}/{n_boat}, "
+            f"率 {boat_rate*100:.0f}%) (×1.5)",
+        )
+    if boat_rate >= overall_rate * 1.5:
+        return (
+            min(1.0, prob * 1.25),
+            f"{target_boat} は大漁多め ({boat_blowouts}/{n_boat}, "
+            f"率 {boat_rate*100:.0f}%) (×1.25)",
+        )
+    if boat_rate <= overall_rate * 0.5:
+        return (
+            max(0.0, prob * 0.5),
+            f"{target_boat} は大漁少 ({boat_blowouts}/{n_boat}, "
+            f"率 {boat_rate*100:.0f}%) (×0.5)",
+        )
+    return prob, f"{target_boat} は平均的 ({boat_blowouts}/{n_boat})"
 
 
 def _adjust_prob_with_conditions(
@@ -633,14 +689,19 @@ def backtest_blowout_probability(
             after_recent, recent_reason = _adjust_prob_with_recent(
                 base_prob, past, target_dt, threshold, label_column,
             )
-            # SST 7d / tide_phase でさらに絞り込み
-            adjusted_prob, cond_reason = _adjust_prob_with_conditions(
+            after_cond, cond_reason = _adjust_prob_with_conditions(
                 after_recent, target, past, threshold, label_column,
             )
-            adj_reason = (
-                f"{recent_reason}; {cond_reason}"
-                if cond_reason != "条件補正なし" else recent_reason
+            target_boat = target.get("boat") if hasattr(target, "get") else None
+            adjusted_prob, boat_reason = _adjust_prob_with_boat(
+                after_cond, target_boat, past, threshold, label_column,
             )
+            parts = [recent_reason]
+            if cond_reason and cond_reason != "条件補正なし":
+                parts.append(cond_reason)
+            if boat_reason and boat_reason not in ("船宿補正なし",):
+                parts.append(boat_reason)
+            adj_reason = "; ".join(parts)
         else:
             adjusted_prob = base_prob
             adj_reason = "補正無効"
@@ -985,7 +1046,8 @@ def _post_process(llm_out: dict, stats: dict) -> dict:
 # v2 -> v3: 大漁日確率を result に含めるよう拡張 (2026-06-03)
 # v3 -> v4: 直近 7d/14d activity で確率を補正、result に base_probability/adjustment 追加
 # v4 -> v5: SST 7d 変化 + tide_phase 補正を追加して precision を向上
-_CACHE_VERSION = "v5"
+# v5 -> v6: 船宿別 prior (大漁実績多/少) 追加。シーブルー型の偏りを強く反映
+_CACHE_VERSION = "v6"
 
 
 def _cache_path(site: str, species: str, target_date: date, hour: int,
@@ -1077,7 +1139,7 @@ def predict_with_llm(
     # 2.6) 大漁日確率（マダイ等 wide-distribution 魚種の event 検出）
     blowout = compute_blowout_probability(
         species=species, target_dt=target_dt,
-        target_conditions=conditions,
+        boat=boat, target_conditions=conditions,
     )
 
     # 3) プロンプト生成
