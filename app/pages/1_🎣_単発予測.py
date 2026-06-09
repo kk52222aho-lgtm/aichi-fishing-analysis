@@ -201,6 +201,18 @@ if submitted:
             f"類似日 {n_similar} 件中 {n_blowout} 件が大漁だった (基準: 全期間 p75)"
         )
 
+        # 補正の理由（船宿/潮回り/recent activity）
+        base_prob = blowout.get("base_probability")
+        adjustment = blowout.get("adjustment", "")
+        if base_prob is not None and adjustment and adjustment != "条件補正なし":
+            with st.expander("🔧 確率補正の理由", expanded=False):
+                st.caption(
+                    f"基準確率 (類似日のみで計算): **{base_prob * 100:.0f}%** → "
+                    f"補正後: **{prob_pct:.0f}%**"
+                )
+                for line in adjustment.split("; "):
+                    st.markdown(f"- {line}")
+
         # 直近の大漁日例
         examples = blowout.get("recent_blowout_examples") or []
         if examples:
