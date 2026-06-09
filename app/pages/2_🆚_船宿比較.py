@@ -108,6 +108,7 @@ def _predict_one(boat: str) -> dict[str, Any]:
         )
         pred = r.get("prediction", {})
         ctx = r.get("boat_context", {})
+        blowout = r.get("blowout") or {}
         return {
             "boat": boat,
             "site": site,
@@ -117,6 +118,9 @@ def _predict_one(boat: str) -> dict[str, Any]:
             "confidence": pred.get("confidence"),
             "signal": pred.get("signal_used") or ctx.get("primary_signal"),
             "n_trips": ctx.get("n_trips_total") or ctx.get("n_trips"),
+            "大漁日確率": blowout.get("probability"),
+            "大漁閾値": blowout.get("threshold"),
+            "大漁補正理由": blowout.get("adjustment", ""),
             "reasoning": pred.get("reasoning", ""),
             "key_factors": pred.get("key_factors", []) or [],
             "risk_factors": pred.get("risk_factors", []) or [],
@@ -132,6 +136,9 @@ def _predict_one(boat: str) -> dict[str, Any]:
             "confidence": "error",
             "signal": None,
             "n_trips": None,
+            "大漁日確率": None,
+            "大漁閾値": None,
+            "大漁補正理由": "",
             "reasoning": "",
             "key_factors": [],
             "risk_factors": [],
@@ -196,8 +203,17 @@ if submitted:
 
     # ── DataFrame ─────────────────────────────────────
     df = pd.DataFrame(rows)
+
+    # ソートキー選択（予測尾数 or 大漁日確率）
+    sort_options = ["予測尾数", "大漁日確率"]
+    sort_key = st.radio(
+        "並べ替え",
+        sort_options,
+        horizontal=True,
+        help="**予測尾数**=ピタリ寄り見積もり。**大漁日確率**=「とにかく大漁日狙いたい」用",
+    )
     df_sorted = df.sort_values(
-        "予測尾数",
+        sort_key,
         ascending=False,
         na_position="last",
     ).reset_index(drop=True)
@@ -210,8 +226,17 @@ if submitted:
         header += "  *(過去日付 / 実績付き)*"
     st.subheader(header)
 
+    # 大漁閾値の表示（species ごとに自動算出された閾値）
+    thresholds = df_sorted["大漁閾値"].dropna()
+    if not thresholds.empty:
+        st.caption(
+            f"🎣 **大漁日 = ≥ {int(thresholds.iloc[0])} 尾** "
+            "(過去の同魚種データ p75 で自動算出)"
+        )
+
     # ── サマリ列定義 ─────────────────────────────────
-    summary_cols = ["boat", "site", "予測尾数", "tier", "tier_label", "confidence", "signal", "n_trips"]
+    summary_cols = ["boat", "site", "予測尾数", "tier", "tier_label",
+                    "大漁日確率", "confidence", "signal", "n_trips"]
     if is_past:
         summary_cols.extend(["actual_top", "actual_total", "actual_rows"])
 
@@ -247,7 +272,34 @@ if submitted:
             return f"{sign}{d:.1f}"
         display_df["pred-actual"] = df_sorted.apply(_delta, axis=1)
 
-    st.dataframe(display_df, use_container_width=True)
+    # 大漁日確率を色付き progress bar 表示
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        column_config={
+            "大漁日確率": st.column_config.ProgressColumn(
+                "🎣 大漁日確率",
+                format="%.0f%%",
+                min_value=0.0,
+                max_value=1.0,
+                help="自動算出された閾値以上の竿頭が出る確率 (船宿/潮回り/SST/直近活性で補正済み)",
+            ),
+        },
+    )
+
+    # ── 補正理由の expander (船宿ごと) ─────────────────
+    has_reasons = df_sorted["大漁補正理由"].fillna("").str.strip().ne("").any()
+    if has_reasons:
+        with st.expander("🔧 大漁日確率の補正理由（船宿ごと）", expanded=False):
+            for _, row in df_sorted.iterrows():
+                reason = row.get("大漁補正理由", "")
+                if not reason or reason == "条件補正なし":
+                    continue
+                prob = row.get("大漁日確率")
+                prob_str = f"{prob * 100:.0f}%" if pd.notna(prob) else "?"
+                st.markdown(f"**{row['boat']}** (確率 {prob_str})")
+                for line in str(reason).split("; "):
+                    st.markdown(f"- {line}")
 
     # ── 棒グラフ ───────────────────────────────────
     try:
