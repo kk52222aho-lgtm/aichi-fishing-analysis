@@ -375,6 +375,7 @@ def find_similar_past_trips(
 def compute_blowout_probability(
     species: str,
     target_dt: pd.Timestamp,
+    target_conditions: Optional[dict[str, Any]] = None,
     integrated_path: Optional[Path | str] = None,
     label_column: str = "top_per_angler",
     threshold_quantile: float = 0.75,
@@ -434,9 +435,21 @@ def compute_blowout_probability(
     base_probability = blowout_count / len(similar)
 
     # 直近 7d / 14d 活性で補正
-    adjusted_probability, adj_reason = _adjust_prob_with_recent(
+    after_recent, recent_reason = _adjust_prob_with_recent(
         base_probability, past, pd.Timestamp(target_dt), threshold, label_column,
     )
+    # SST 7d 変化 / tide_phase で precision を絞り込み
+    if target_conditions:
+        adjusted_probability, cond_reason = _adjust_prob_with_conditions(
+            after_recent, target_conditions, past, threshold, label_column,
+        )
+        adj_reason = (
+            f"{recent_reason}; {cond_reason}"
+            if cond_reason != "条件補正なし" else recent_reason
+        )
+    else:
+        adjusted_probability = after_recent
+        adj_reason = recent_reason
 
     # 直近の大漁日（上位 3 件）
     big_days = similar[blowout_mask].sort_values("datetime", ascending=False)
@@ -485,6 +498,84 @@ def _adjust_prob_with_recent(
         # 3 trip 以上活動あるのに大漁無し = cold streak
         return max(0.0, base_prob - 0.10), "直近 14d cold streak (-10%)"
     return base_prob, "補正なし (recent 情報少)"
+
+
+def _adjust_prob_with_conditions(
+    prob: float, target: dict[str, Any] | pd.Series, past: pd.DataFrame,
+    threshold: float, label_column: str = "top_per_angler",
+) -> tuple[float, str]:
+    """SST 7d 上昇傾向と tide_phase の過去大漁傾向で確率を絞り込み (precision 向上目的)。
+
+    マダイ 9/9 件が中潮/大潮 → 小潮/長潮/若潮は強力に suppress。
+    """
+    reasons: list[str] = []
+    factor = 1.0
+
+    # SST 7d delta — 直近 7d 平均との差で代用（integrated に sst_d7d 列が無いケースに対応）
+    sst_d7d = None
+    sst_d7d_raw = target.get("sst_d7d") if hasattr(target, "get") else None
+    try:
+        if sst_d7d_raw is not None:
+            sst_d7d = float(sst_d7d_raw)
+            if sst_d7d != sst_d7d:  # NaN
+                sst_d7d = None
+    except (TypeError, ValueError):
+        sst_d7d = None
+
+    if sst_d7d is None and "sea_surface_temperature" in past.columns:
+        target_sst_raw = target.get("sea_surface_temperature") if hasattr(target, "get") else None
+        try:
+            target_sst = float(target_sst_raw) if target_sst_raw is not None else None
+            if target_sst is not None and target_sst != target_sst:
+                target_sst = None
+        except (TypeError, ValueError):
+            target_sst = None
+        if target_sst is not None and "datetime" in past.columns and len(past):
+            target_dt = pd.Timestamp(target["datetime"]) if hasattr(target, "get") and target.get("datetime") is not None else None
+            if target_dt is not None:
+                recent_sst = past[past["datetime"] >= target_dt - pd.Timedelta(days=14)]
+                if len(recent_sst) >= 2:
+                    past_mean = recent_sst["sea_surface_temperature"].dropna().mean()
+                    if past_mean == past_mean:  # not NaN
+                        sst_d7d = target_sst - float(past_mean)
+
+    if sst_d7d is not None:
+        if sst_d7d >= 0.5:
+            factor *= 1.15
+            reasons.append(f"SST 7d +{sst_d7d:.1f}℃ (+15%)")
+        elif sst_d7d <= -0.5:
+            factor *= 0.80
+            reasons.append(f"SST 7d {sst_d7d:.1f}℃ (-20%)")
+
+    # Tide phase の大漁傾向 (積極補正)
+    today_tide = target.get("tide_phase") if hasattr(target, "get") else None
+    if today_tide and "tide_phase" in past.columns:
+        past_blowouts = past[past[label_column] >= threshold]
+        n_past = len(past)
+        n_past_blowouts = len(past_blowouts)
+        if n_past >= 5 and n_past_blowouts >= 2:
+            all_tide_count = (past["tide_phase"] == today_tide).sum()
+            blowout_tide_count = (past_blowouts["tide_phase"] == today_tide).sum()
+            if all_tide_count >= 2:
+                overall_rate = n_past_blowouts / n_past
+                tide_specific_rate = blowout_tide_count / all_tide_count
+
+                if blowout_tide_count == 0 and all_tide_count >= 2:
+                    # この潮回りで大漁日ゼロ → 強力 suppression
+                    factor *= 0.30
+                    reasons.append(f"{today_tide}は過去大漁ゼロ (×0.3)")
+                elif tide_specific_rate >= overall_rate * 1.3:
+                    factor *= 1.20
+                    reasons.append(f"{today_tide}は大漁多 (+20%)")
+                elif tide_specific_rate >= overall_rate * 1.1:
+                    factor *= 1.10
+                    reasons.append(f"{today_tide}はやや大漁多 (+10%)")
+                elif tide_specific_rate <= overall_rate * 0.5:
+                    factor *= 0.60
+                    reasons.append(f"{today_tide}は大漁少 (-40%)")
+
+    adjusted = max(0.0, min(1.0, prob * factor))
+    return adjusted, "; ".join(reasons) if reasons else "条件補正なし"
 
 
 def backtest_blowout_probability(
@@ -539,8 +630,16 @@ def backtest_blowout_probability(
         base_prob = n_blowout / n_similar
 
         if use_recent_adjustment:
-            adjusted_prob, adj_reason = _adjust_prob_with_recent(
+            after_recent, recent_reason = _adjust_prob_with_recent(
                 base_prob, past, target_dt, threshold, label_column,
+            )
+            # SST 7d / tide_phase でさらに絞り込み
+            adjusted_prob, cond_reason = _adjust_prob_with_conditions(
+                after_recent, target, past, threshold, label_column,
+            )
+            adj_reason = (
+                f"{recent_reason}; {cond_reason}"
+                if cond_reason != "条件補正なし" else recent_reason
             )
         else:
             adjusted_prob = base_prob
@@ -579,6 +678,7 @@ def _readable_conditions(row: pd.DataFrame) -> dict[str, Any]:
         "wave_height": 2, "wave_period": 1, "swell_wave_height": 2,
         "ocean_current_velocity": 2, "ocean_current_direction": 0,
         "sea_surface_temperature": 1, "sea_level_height_msl": 2,
+        "sst_d7d": 2, "sst_d24h": 2,
         "tide_cm": 0, "moon_age": 1, "sunrise_hour": 2, "sunset_hour": 2,
     }
     for k, nd in keys_round.items():
@@ -884,7 +984,8 @@ def _post_process(llm_out: dict, stats: dict) -> dict:
 # v1 -> v2: 風速を km/h -> m/s 換算してから LLM に渡すよう変更 (2026-06-02)
 # v2 -> v3: 大漁日確率を result に含めるよう拡張 (2026-06-03)
 # v3 -> v4: 直近 7d/14d activity で確率を補正、result に base_probability/adjustment 追加
-_CACHE_VERSION = "v4"
+# v4 -> v5: SST 7d 変化 + tide_phase 補正を追加して precision を向上
+_CACHE_VERSION = "v5"
 
 
 def _cache_path(site: str, species: str, target_date: date, hour: int,
@@ -974,7 +1075,10 @@ def predict_with_llm(
         stats["similar_past_trips"] = similar
 
     # 2.6) 大漁日確率（マダイ等 wide-distribution 魚種の event 検出）
-    blowout = compute_blowout_probability(species=species, target_dt=target_dt)
+    blowout = compute_blowout_probability(
+        species=species, target_dt=target_dt,
+        target_conditions=conditions,
+    )
 
     # 3) プロンプト生成
     prompt = _build_prompt(
