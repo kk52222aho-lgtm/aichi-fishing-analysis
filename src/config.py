@@ -41,6 +41,7 @@ SITES: dict[str, Site] = {
     "irago":         Site("irago",         "伊良湖",         34.5800, 137.0200, "IO"),
     "mikawa_bay":    Site("mikawa_bay",    "三河湾中央",     34.7500, 137.0500, "IO"),
     "chita_tip":     Site("chita_tip",     "知多半島先端",   34.6900, 136.9700, "NA"),  # 名古屋
+    "akabane":       Site("akabane",       "赤羽根港",       34.6131, 137.2667, "IO"),  # 渥美半島・遠州灘側
 }
 
 OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
