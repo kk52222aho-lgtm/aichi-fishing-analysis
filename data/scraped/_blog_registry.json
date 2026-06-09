@@ -39,5 +39,14 @@
     "primary_signal": "qualitative",
     "secondary_signal": "total_catch",
     "note": "赤羽根港 (渥美半島南側・遠州灘)。アカムツ/イサキ/サワラ/ワラサ。新地点カバレッジ"
+  },
+  "daishinmaru": {
+    "boat": "大進丸",
+    "site": "toyohama",
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch",
+    "blog_url": "https://daishinmaru.jp/fishing/",
+    "blog_platform": "custom",
+    "note": "豊浜港。スルメイカ/イサキ/ジギング全般。Ameblo ではなく独自サイト、scraper の拡張が必要。"
   }
 }
