@@ -265,8 +265,10 @@ def re_aggregate(
 def _cli() -> None:
     parser = argparse.ArgumentParser(description="釣り船ブログから seed catches.csv を作る")
     parser.add_argument("--blog", default="maruman2010", help="ameblo blog id")
-    parser.add_argument("--site", default="irago", choices=list(config.SITES))
-    parser.add_argument("--boat", default=None, help="船宿名（default: blog_id）")
+    parser.add_argument("--site", default=None, choices=list(config.SITES),
+                        help="default: registry から自動解決、無ければ irago")
+    parser.add_argument("--boat", default=None,
+                        help="船宿名 (default: registry から自動解決、無ければ blog_id)")
     parser.add_argument("--months", type=int, default=6)
     parser.add_argument("--conf", type=float, default=0.30)
     parser.add_argument("--limit", type=int, default=None)
@@ -274,13 +276,40 @@ def _cli() -> None:
                         help="既存 summary.json も再処理する")
     parser.add_argument("--sleep", type=float, default=1.2)
     parser.add_argument("--no-viz", action="store_true")
+    # LLM 抽出 / YOLO スキップ flags
+    parser.add_argument("--use-llm-extract", action="store_true",
+                        help="本文からの LLM 抽出を有効化 (top_per_angler 精度向上)")
+    parser.add_argument("--llm-provider", default="cerebras",
+                        choices=["cerebras", "groq", "gemini", "ollama"],
+                        help="LLM 抽出時のプロバイダ (default: cerebras 無料)")
+    parser.add_argument("--llm-model", default=None,
+                        help="LLM モデル指定 (None なら provider default)")
+    parser.add_argument("--no-yolo", action="store_true",
+                        help="YOLO 推論をスキップ (LLM 抽出だけで catches.csv 生成)")
     args = parser.parse_args()
 
+    # registry から site/boat を解決 (CLI 引数が None のときだけ)
+    site = args.site
+    boat = args.boat
+    if site is None or boat is None:
+        try:
+            reg = scrape_to_catches.load_blog_registry()
+            entry = reg.get(args.blog, {})
+            site = site or entry.get("site")
+            boat = boat or entry.get("boat")
+        except Exception:
+            pass
+    site = site or "irago"
+
     build(
-        blog_id=args.blog, site=args.site, boat=args.boat,
+        blog_id=args.blog, site=site, boat=boat,
         months_back=args.months, conf=args.conf, limit=args.limit,
         skip_existing=not args.no_skip_existing,
         sleep_sec=args.sleep, no_viz=args.no_viz,
+        use_llm_extract=args.use_llm_extract,
+        llm_provider=args.llm_provider,
+        llm_model=args.llm_model,
+        run_yolo=not args.no_yolo,
     )
 
 
