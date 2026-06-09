@@ -123,6 +123,43 @@ def fetch_entry_init_data(url: str) -> Optional[dict]:
         return None
 
 
+def _fetch_body_daishinmaru(url: str) -> Optional[dict]:
+    """daishinmaru.jp の個別記事から title と本文プレーンテキストを返す。"""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+    except requests.RequestException:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    # title: <title> or <h1>/<h2>
+    title = ""
+    if soup.title and soup.title.string:
+        title = soup.title.string.split("|")[0].strip()
+    if not title:
+        for sel in ("h1", "h2"):
+            tag = soup.find(sel)
+            if tag and tag.get_text(strip=True):
+                title = tag.get_text(strip=True)
+                break
+
+    # 本文: <main>, <article>, または body 全体
+    body_tag = soup.find("article") or soup.find("main") or soup.body
+    if body_tag is None:
+        return None
+    # script/style/nav/footer/header を除去
+    for tag_name in ("script", "style", "nav", "footer", "header"):
+        for t in body_tag.find_all(tag_name):
+            t.decompose()
+    text = body_tag.get_text(" ", strip=True)
+    text = re.sub(r"\s+", " ", text)
+
+    # entry_id を URL 末尾の slug から取得
+    m = re.search(r"daishinmaru\.jp/([^/]+)/?$", url)
+    entry_id = m.group(1) if m else ""
+
+    return {"title": title[:160], "body_text": text, "entry_id": entry_id}
+
+
 def fetch_body(url: str) -> Optional[dict]:
     """エントリページからタイトルと本文プレーンテキストを返す。
 
@@ -130,6 +167,10 @@ def fetch_body(url: str) -> Optional[dict]:
         {"title": str, "body_text": str, "entry_id": str}
         失敗時 None。
     """
+    # 独自サイト dispatch
+    if "daishinmaru.jp" in url:
+        return _fetch_body_daishinmaru(url)
+
     data = fetch_entry_init_data(url)
     if not data:
         return None

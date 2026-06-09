@@ -28,6 +28,7 @@ import argparse
 import json
 import re
 import time
+import urllib.parse
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -109,6 +110,77 @@ def _entries_from_html(html: str, blog_screen_name: str) -> list[Entry]:
     return entries
 
 
+def list_entries_daishinmaru(
+    months_back: int = 6,
+    sleep_sec: float = 0.5,
+) -> list[Entry]:
+    """daishinmaru.jp/fishing/ から個別記事 URL を列挙。
+
+    URL slug: /YYYY-M-D-<title>/ から日付を解析する。
+    """
+    base = "https://daishinmaru.jp/fishing/"
+    try:
+        r = requests.get(base, headers=HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        print(f"⚠️ daishinmaru index: {e}")
+        return []
+
+    # href="/2026-6-9-スルメイカコース/" or href="https://daishinmaru.jp/2026-6-9-..."
+    pattern = re.compile(
+        r'href="(?:https?://daishinmaru\.jp)?/(\d{4}-\d{1,2}-\d{1,2}-[^"/]+)/?"'
+    )
+    cutoff = datetime.now(tz=JST) - timedelta(days=months_back * 31)
+    seen: set[str] = set()
+    out: list[Entry] = []
+
+    for slug in pattern.findall(r.text):
+        if slug in seen:
+            continue
+        seen.add(slug)
+        m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})-(.+)", slug)
+        if not m:
+            continue
+        try:
+            dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                          hour=5, minute=30, tzinfo=JST)
+        except ValueError:
+            continue
+        if dt < cutoff:
+            continue
+        title_raw = m.group(4)
+        try:
+            title = urllib.parse.unquote(title_raw).replace("-", " ").strip()
+        except Exception:
+            title = title_raw[:160]
+        # entry_id は URL デコードしてファイル名に使いやすくする
+        try:
+            decoded_slug = urllib.parse.unquote(slug)
+        except Exception:
+            decoded_slug = slug
+        out.append(Entry(
+            url=f"https://daishinmaru.jp/{slug}/",   # URL は encoded のまま
+            posted_at=dt, title=title[:160], entry_id=decoded_slug,
+        ))
+
+    out.sort(key=lambda e: e.posted_at, reverse=True)
+    return out
+
+
+def _registry_platform(blog_id: str) -> tuple[str, str]:
+    """registry から (platform, blog_url) を返す。fallback は ('ameblo', '')。"""
+    try:
+        from . import scrape_to_catches as _stc
+        reg = _stc.load_blog_registry()
+        info = reg.get(blog_id, {}) or {}
+        return (
+            info.get("blog_platform", "ameblo"),
+            info.get("blog_url", ""),
+        )
+    except Exception:
+        return ("ameblo", "")
+
+
 def list_entries(
     blog_id: str,
     months_back: int = 6,
@@ -118,11 +190,19 @@ def list_entries(
     """ブログIDから直近 months_back ヶ月のエントリを取得（新→旧でソート）。
 
     Args:
-        blog_id: ameblo の screen_name（URL に出る方。例: "maruman2010"）
+        blog_id: ameblo の screen_name か、独自サイト用の登録 ID
         months_back: 何ヶ月前まで遡るか
         max_pages: 最大ページ数（安全弁）
         sleep_sec: ページ間スリープ（先方への配慮）
     """
+    # registry で blog_platform=custom が設定されてたら dispatch
+    platform, blog_url = _registry_platform(blog_id)
+    if platform == "custom":
+        if "daishinmaru.jp" in blog_url:
+            return list_entries_daishinmaru(months_back=months_back, sleep_sec=sleep_sec)
+        print(f"⚠️ {blog_id}: custom platform だが対応 scraper 未実装 ({blog_url})")
+        return []
+
     cutoff = datetime.now(tz=JST) - timedelta(days=months_back * 31)
     out: list[Entry] = []
     seen: set[str] = set()
