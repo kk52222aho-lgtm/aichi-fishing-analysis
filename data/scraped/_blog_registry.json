@@ -1,0 +1,43 @@
+{
+  "maruman2010": {
+    "boat": "maruman2010",
+    "site": "irago",
+    "primary_signal": "top_per_angler",
+    "secondary_signal": "count_yolo"
+  },
+  "go-arimotomaru": {
+    "boat": "ありもと丸",
+    "site": "utsumi_shinko",
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch"
+  },
+  "takemaru-gt-4989": {
+    "boat": "武丸",
+    "site": "morozaki",
+    "primary_signal": "count_yolo"
+  },
+  "matobaya": {
+    "boat": "まとばや",
+    "site": "morozaki",
+    "primary_signal": "qualitative"
+  },
+  "seablue-0908": {
+    "boat": "シーブルー",
+    "site": "morozaki",
+    "primary_signal": "qualitative"
+  },
+  "masahoumaru": {
+    "boat": "政宝丸",
+    "site": "shinojima",
+    "primary_signal": "total_catch",
+    "secondary_signal": "qualitative",
+    "note": "篠島・日間賀島エリア。マダイ/ハマチ/タチウオ/ワラサ主力。ほぼ毎日出船。船中N本/枚 形式が多い"
+  },
+  "posukemaru": {
+    "boat": "ぽん助丸",
+    "site": "akabane",
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch",
+    "note": "赤羽根港 (渥美半島南側・遠州灘)。アカムツ/イサキ/サワラ/ワラサ。新地点カバレッジ"
+  }
+}
