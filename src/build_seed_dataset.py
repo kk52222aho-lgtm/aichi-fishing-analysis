@@ -107,7 +107,7 @@ def build(
     use_llm_extract: bool = False,
     llm_provider: str = "groq",
     llm_model: Optional[str] = None,
-    llm_fallback_provider: Optional[str] = "gemini",
+    llm_fallback_provider: Optional[str] = None,
     run_yolo: bool = True,
     primary_signal: Optional[str] = None,
     secondary_signal: Optional[str] = None,
@@ -284,6 +284,8 @@ def _cli() -> None:
                         help="LLM 抽出時のプロバイダ (default: cerebras 無料)")
     parser.add_argument("--llm-model", default=None,
                         help="LLM モデル指定 (None なら provider default)")
+    parser.add_argument("--llm-fallback", default=None,
+                        help="一次失敗時の fallback provider (default: なし、課金 gemini 試行回避)")
     parser.add_argument("--no-yolo", action="store_true",
                         help="YOLO 推論をスキップ (LLM 抽出だけで catches.csv 生成)")
     args = parser.parse_args()
@@ -309,6 +311,7 @@ def _cli() -> None:
         use_llm_extract=args.use_llm_extract,
         llm_provider=args.llm_provider,
         llm_model=args.llm_model,
+        llm_fallback_provider=args.llm_fallback,
         run_yolo=not args.no_yolo,
     )
 
