@@ -32,6 +32,24 @@ DEFAULT_LABEL_COLUMN = "top_per_angler"
 # 5 段階のラベル
 TIER_LABELS: tuple[str, ...] = ("厳しい", "やや渋い", "普通", "好調", "大漁")
 
+# 本文の定性的評価 → 5 段階 tier。数値ラベル(top_per_angler)が無い行を
+# ティア分類モードの学習に取り込むための写像。表記ゆれも吸収する。
+QUALITATIVE_TO_TIER: dict[str, int] = {
+    "絶好調": 5,
+    "大漁": 5,
+    "爆釣": 5,
+    "好調": 4,
+    "普通": 3,
+    "まずまず": 3,
+    "イマイチ": 2,
+    "やや渋い": 2,
+    "渋い": 2,
+    "厳しい": 1,
+    "難しい": 1,
+    "ボウズ": 1,
+    "ボーズ": 1,
+}
+
 
 def _make_estimator(n_train: Optional[int] = None):
     """学習サンプル数に応じてモデル容量を調整。
@@ -62,6 +80,38 @@ def _make_estimator(n_train: Optional[int] = None):
                 min_samples_leaf=3, l2_regularization=0.1, random_state=42,
             )
         return HistGradientBoostingRegressor(
+            max_iter=400, learning_rate=0.05, random_state=42,
+        )
+
+
+def _make_classifier(n_train: Optional[int] = None):
+    """ティア分類用の推定器。学習数が少ないうちは容量を絞り正則化を効かせる。
+
+    閾値 60: tier 5 クラス × 推奨 10件/クラス を一応の目安に、それ未満は小データ扱い。
+    class_weight="balanced" で偏った tier 分布（好調が多い）を補正する。
+    """
+    small = n_train is not None and n_train < 60
+    try:
+        from lightgbm import LGBMClassifier
+        if small:
+            return LGBMClassifier(
+                n_estimators=150, learning_rate=0.05, num_leaves=8,
+                min_child_samples=3, reg_alpha=0.1, reg_lambda=0.1,
+                class_weight="balanced", random_state=42, verbose=-1,
+            )
+        return LGBMClassifier(
+            n_estimators=400, learning_rate=0.05, num_leaves=31,
+            min_child_samples=5, class_weight="balanced",
+            random_state=42, verbose=-1,
+        )
+    except ImportError:
+        from sklearn.ensemble import HistGradientBoostingClassifier
+        if small:
+            return HistGradientBoostingClassifier(
+                max_iter=150, learning_rate=0.05, max_depth=4,
+                min_samples_leaf=3, l2_regularization=0.1, random_state=42,
+            )
+        return HistGradientBoostingClassifier(
             max_iter=400, learning_rate=0.05, random_state=42,
         )
 
@@ -102,11 +152,135 @@ def _value_to_tier(value: float, cutoffs: list[float]) -> tuple[int, str]:
     return idx + 1, TIER_LABELS[idx]
 
 
+def _build_tier_labels(
+    sub: pd.DataFrame, label_column: str = DEFAULT_LABEL_COLUMN,
+) -> tuple[pd.Series, list[float], dict[str, int]]:
+    """各行を 1-5 tier に変換する。
+
+    優先順位:
+      1. 数値ラベル(top_per_angler)があれば、その魚種内の分位 [p20,p40,p60,p80]
+         で 5 段階に割り当て（客観的）。
+      2. 数値が無く質的評価(qualitative)があれば QUALITATIVE_TO_TIER で割り当て。
+      3. どちらも無い行は NaN（学習から除外）。
+
+    Returns:
+        (tier: 1-5 の float Series。未確定は NaN, cutoffs: 数値用カットオフ,
+         src: {"from_numeric": n, "from_qualitative": n})
+    """
+    tier = pd.Series(np.nan, index=sub.index, dtype=float)
+
+    cutoffs: list[float] = []
+    if label_column in sub.columns:
+        num = pd.to_numeric(sub[label_column], errors="coerce")
+        num_valid = num.dropna()
+        if len(num_valid) >= 5:  # 分位を安定して取れる最低数
+            cutoffs = _compute_boat_stats(num_valid.values).get("tier_cutoffs", [])
+            if len(cutoffs) == 4:
+                idx = np.clip(np.digitize(num_valid.values, cutoffs, right=True), 0, 4) + 1
+                tier.loc[num_valid.index] = idx.astype(float)
+    n_from_num = int(tier.notna().sum())
+
+    if "qualitative" in sub.columns:
+        mask = tier.isna()
+        mapped = sub.loc[mask, "qualitative"].map(QUALITATIVE_TO_TIER)
+        tier.loc[mask] = mapped.astype(float)
+    n_from_qual = int(tier.notna().sum()) - n_from_num
+
+    return tier, cutoffs, {"from_numeric": n_from_num, "from_qualitative": n_from_qual}
+
+
+def _train_tier(
+    species: str, sub: pd.DataFrame, label_column: str, min_samples: int,
+) -> dict[str, Any]:
+    """ティア分類モデル(5段階)を学習して保存。
+
+    数値ラベルが無く質的評価しかない行も取り込むため、回帰モードより
+    学習データが大幅に増える。指標は accuracy と ±1 tier 以内の正解率。
+    """
+    sub = sub.copy()
+    tier, cutoffs, src = _build_tier_labels(sub, label_column)
+    sub["_tier"] = tier
+    sub = sub.dropna(subset=["_tier"])
+    sub["_tier"] = sub["_tier"].astype(int)
+    n = len(sub)
+    if n < min_samples:
+        raise ValueError(
+            f"学習データ不足(tier): species={species} で {n} 行 "
+            f"(数値 {src['from_numeric']} + 質的 {src['from_qualitative']}, 最低 {min_samples} 行必要)"
+        )
+    if sub["_tier"].nunique() < 2:
+        raise ValueError(
+            f"tier が 1 種類しか無いため分類不可: species={species}, tier={sorted(sub['_tier'].unique())}"
+        )
+    if n < 50:
+        warnings.warn(
+            f"データ数が少ないため精度が不安定になる可能性があります: "
+            f"species={species}, n={n} (推奨 50 行以上)",
+            stacklevel=2,
+        )
+
+    if "datetime" in sub.columns:
+        sub["datetime"] = pd.to_datetime(sub["datetime"], errors="coerce", utc=True)
+        sub = sub.sort_values("datetime", kind="stable").reset_index(drop=True)
+
+    y = sub["_tier"].astype(int).values
+    n_test = max(1, n // 5)
+    sub_train = sub.iloc[:-n_test].reset_index(drop=True)
+    sub_test = sub.iloc[-n_test:].reset_index(drop=True)
+    X_train = features.build_features(sub_train)
+    X_test = features.build_features(sub_test)
+    for c in X_train.columns:
+        if c not in X_test.columns:
+            X_test[c] = 0.0
+    X_test = X_test[X_train.columns]
+    y_train, y_test = y[:-n_test], y[-n_test:]
+
+    model = _make_classifier(n_train=len(X_train))
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test).astype(int)
+    acc = float(np.mean(pred == y_test))
+    within1 = float(np.mean(np.abs(pred - y_test) <= 1))
+
+    vals, counts = np.unique(y, return_counts=True)
+    tier_dist = {int(v): int(c) for v, c in zip(vals, counts)}
+    num_for_stats = pd.to_numeric(sub.get(label_column), errors="coerce").dropna().values \
+        if label_column in sub.columns else np.array([])
+    boat_stats = _compute_boat_stats(num_for_stats) if len(num_for_stats) else {}
+
+    bundle = {
+        "task": "tier_clf",
+        "model": model,
+        "feature_columns": list(X_train.columns),
+        "species": species,
+        "label_column": label_column,
+        "tier_cutoffs": cutoffs,
+        "classes_": [int(c) for c in model.classes_],
+        "tier_dist": tier_dist,
+        "label_source": src,
+        "trained_at": datetime.now().isoformat(),
+        "n_samples": int(n),
+        "boat_stats": boat_stats,
+        "metrics": {"accuracy": acc, "within1_acc": within1},
+    }
+    joblib.dump(bundle, _model_path(species))
+    return {
+        "species": species,
+        "task": "tier_clf",
+        "n_samples": n,
+        "label_source": src,
+        "tier_dist": tier_dist,
+        "accuracy": acc,
+        "within1_acc": within1,
+        "model_path": str(_model_path(species)),
+    }
+
+
 def train(
     species: str,
     integrated_path: Path | str | None = None,
     label_column: str = DEFAULT_LABEL_COLUMN,
     min_samples: int = 10,
+    mode: str = "reg",
 ) -> dict[str, Any]:
     """指定魚種のモデルを学習して保存。
 
@@ -115,6 +289,8 @@ def train(
         integrated_path: 統合データ parquet/csv のパス
         label_column: 学習ラベル列。default "top_per_angler"
         min_samples: 学習に必要な最小行数
+        mode: "reg"=top_per_angler 回帰（従来）/ "tier"=5段階ティア分類
+              （質的評価行も取り込むのでデータ量が増える）
     """
     integrated_path = Path(integrated_path) if integrated_path else config.INTEGRATED_DIR / "integrated.parquet"
     if not integrated_path.exists():
@@ -122,6 +298,10 @@ def train(
 
     df = pd.read_parquet(integrated_path) if integrated_path.suffix == ".parquet" else pd.read_csv(integrated_path)
     sub = df[df["species"] == species].copy()
+
+    if mode == "tier":
+        return _train_tier(species, sub, label_column, min_samples)
+
     if label_column not in sub.columns:
         raise ValueError(f"label_column '{label_column}' が統合データに存在しません。columns={list(sub.columns)}")
     sub = sub.dropna(subset=[label_column])  # ラベル欠損行は学習に使わない
@@ -236,6 +416,44 @@ def predict(
         if c not in X.columns:
             X[c] = 0.0
     X = X[cols]
+
+    if bundle.get("task") == "tier_clf":
+        model = bundle["model"]
+        classes = [int(c) for c in getattr(model, "classes_", bundle.get("classes_", []))]
+        proba = np.asarray(model.predict_proba(X)[0], dtype=float)
+        top = int(np.argmax(proba))
+        tier_num = int(classes[top])
+        tier_label = TIER_LABELS[tier_num - 1] if 1 <= tier_num <= 5 else str(tier_num)
+        tier_probs = {int(c): round(float(p), 3) for c, p in zip(classes, proba)}
+        bstats = bundle.get("boat_stats") or {}
+        return {
+            "site": site,
+            "site_name_ja": config.SITES[site].name_ja if site in config.SITES else site,
+            "species": species,
+            "date": str(target_date),
+            "hour": hour,
+            "boat": boat,
+            "anglers": anglers,
+            "tackle": tackle,
+            "prediction": {
+                "tier": tier_num,
+                "tier_label": tier_label,
+                "tier_probabilities": tier_probs,
+                "tier_confidence": round(float(proba[top]), 3),
+                "vs_boat_avg": None,
+                "vs_boat_median": None,
+                "vs_other_boats": None,
+            },
+            "boat_context": bstats,
+            "model": {
+                "task": "tier_clf",
+                "accuracy": bundle.get("metrics", {}).get("accuracy"),
+                "within1_acc": bundle.get("metrics", {}).get("within1_acc"),
+                "n_samples_train": bundle.get("n_samples"),
+                "trained_at": bundle.get("trained_at"),
+            },
+        }
+
     yhat = float(bundle["model"].predict(X)[0])
     yhat = max(0.0, yhat)
 
@@ -311,6 +529,8 @@ def _cli() -> None:
     p_train.add_argument("--label", default=DEFAULT_LABEL_COLUMN,
                          help=f"学習ラベル列 (default {DEFAULT_LABEL_COLUMN})")
     p_train.add_argument("--min-samples", type=int, default=10)
+    p_train.add_argument("--mode", choices=["reg", "tier"], default="tier",
+                         help="reg=top_per_angler 回帰 / tier=5段階ティア分類(質的行も活用, default)")
 
     p_pred = sub.add_parser("predict")
     p_pred.add_argument("--site", required=True, choices=list(config.SITES))
@@ -329,6 +549,7 @@ def _cli() -> None:
         result = train(
             args.species, args.data,
             label_column=args.label, min_samples=args.min_samples,
+            mode=args.mode,
         )
     elif args.cmd == "predict":
         result = predict(
