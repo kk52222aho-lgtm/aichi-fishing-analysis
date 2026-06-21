@@ -297,6 +297,11 @@ _KNOWN_SPECIES_LIST = [
 ]
 
 
+# 既定のカスケード順（指定 provider / fallback の後に続けて試す無料 provider 群）。
+# キー未設定の provider は実行時に自動スキップ。各社の枠は独立なので総処理量が増える。
+_FREE_CASCADE = ("cerebras", "groq", "gemini", "nvidia", "sambanova", "openrouter")
+
+
 def _extract_with_llm(
     text: str,
     provider: str = "groq",
@@ -321,17 +326,11 @@ def _extract_with_llm(
         _PROVIDER_CALLERS, _PROVIDER_DEFAULTS, _PROVIDER_API_KEYS, _get_api_key,
     )
 
-    def _resolve(prov: str) -> tuple[str, str]:
-        if prov not in _PROVIDER_CALLERS:
-            raise ValueError(f"unknown LLM provider: {prov}")
-        m = model if (model and prov == provider) else _PROVIDER_DEFAULTS[prov]
-        k = _get_api_key(prov)
-        if prov != "ollama" and not k:
-            tried = ", ".join(_PROVIDER_API_KEYS.get(prov, ()))
-            raise RuntimeError(f"{prov} API key 未解決 (試した: {tried})")
-        return m, k
-
-    used_model, api_key = _resolve(provider)
+    # カスケード順: 指定provider → fallback → 既定の無料provider群（重複除去・未登録除外）
+    chain: list[str] = []
+    for p in [provider, fallback_provider, *_FREE_CASCADE]:
+        if p and p in _PROVIDER_CALLERS and p not in chain:
+            chain.append(p)
 
     species_list = "、".join(_KNOWN_SPECIES_LIST)
     prompt = f"""あなたは日本の釣り船ブログの本文から釣果情報を抽出する専門家です。
@@ -367,22 +366,27 @@ def _extract_with_llm(
     # 一次プロバイダ失敗（rate limit 等）→ fallback_provider に自動切替
     raw = None
     last_err: Optional[Exception] = None
-    try:
-        raw = _PROVIDER_CALLERS[provider](prompt, used_model, api_key, schema=None)
-    except Exception as e:
-        last_err = e
-        msg = str(e)
-        rate_limited = ("429" in msg) or ("rate" in msg.lower()) or ("RESOURCE_EXHAUSTED" in msg)
-        if fallback_provider and fallback_provider != provider and rate_limited:
-            try:
-                fb_model, fb_key = _resolve(fallback_provider)
-                print(f"  ↳ {provider} rate limit → fallback to {fallback_provider}")
-                raw = _PROVIDER_CALLERS[fallback_provider](prompt, fb_model, fb_key, schema=None)
-            except Exception as fb_e:
-                last_err = fb_e
-                raw = None
-        if raw is None:
-            raise last_err  # type: ignore[misc]
+    for idx, prov in enumerate(chain):
+        key = "" if prov == "ollama" else _get_api_key(prov)
+        if prov != "ollama" and not key:
+            continue  # キー未設定の provider は飛ばす
+        used_model = model if (model and prov == provider) else _PROVIDER_DEFAULTS.get(prov)
+        if not used_model:
+            continue
+        try:
+            raw = _PROVIDER_CALLERS[prov](prompt, used_model, key, schema=None)
+            if idx > 0:
+                print(f"  ↳ cascade → {prov} で抽出")
+            break
+        except Exception as e:
+            last_err = e
+            print(f"  ↳ {prov} 失敗 ({str(e)[:50]}) → 次へ")
+            raw = None
+            continue
+    if raw is None:
+        if last_err is not None:
+            raise last_err
+        raise RuntimeError("利用可能な LLM provider/キーがありません（キー未設定）")
 
     catches = raw.get("catches", {}) if isinstance(raw, dict) else {}
     if not isinstance(catches, dict):

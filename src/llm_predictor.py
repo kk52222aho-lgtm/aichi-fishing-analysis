@@ -46,10 +46,14 @@ TIER_LABELS = ("厳しい", "やや渋い", "普通", "好調", "大漁")
 
 # プロバイダごとのデフォルトモデル
 _PROVIDER_DEFAULTS = {
-    "gemini":   "gemini-2.5-flash",
-    "groq":     "llama-3.3-70b-versatile",
-    "cerebras": "gpt-oss-120b",
-    "ollama":   "llama3.2:3b",
+    "gemini":    "gemini-2.5-flash",
+    "groq":      "llama-3.3-70b-versatile",
+    "cerebras":  "gpt-oss-120b",
+    "ollama":    "llama3.2:3b",
+    # 追加の無料 OpenAI 互換プロバイダ（各社独立枠 → カスケードで総量増）
+    "nvidia":    "meta/llama-3.3-70b-instruct",
+    "sambanova": "Meta-Llama-3.3-70B-Instruct",
+    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
 }
 
 # プロバイダごとの API キー候補（Colab userdata / 環境変数の名前）
@@ -61,6 +65,9 @@ _PROVIDER_API_KEYS = {
     "groq":     ("GROQ_API_KEY", "GROQ_KEY"),
     "cerebras": ("CEREBRAS_API_KEY", "CEREBRAS_KEY"),
     "ollama":   (),  # local, no key needed
+    "nvidia":   ("NVIDIA_API_KEY", "NVIDIA_NIM_API_KEY", "NIM_API_KEY"),
+    "sambanova": ("SAMBANOVA_API_KEY", "SAMBA_API_KEY"),
+    "openrouter": ("OPENROUTER_API_KEY", "OPENROUTER_KEY"),
 }
 
 # JSON 出力スキーマ（OpenAPI 風、Gemini が直接食う形）
@@ -1004,13 +1011,74 @@ def _call_ollama(
     return json.loads(resp.json()["response"])
 
 
+def _loads_json_lenient(content: str) -> dict:
+    """OpenAI 互換でも response_format 非対応な provider 向けの寛容な JSON parse。
+    ```json フェンスや前後の散文を除去して最外の {...} を取り出す。"""
+    s = (content or "").strip()
+    if s.startswith("```"):
+        s = s.split("```", 2)[1] if s.count("```") >= 2 else s.lstrip("`")
+        if s.lstrip().startswith("json"):
+            s = s.lstrip()[4:]
+    try:
+        return json.loads(s)
+    except Exception:
+        a, b = s.find("{"), s.rfind("}")
+        if a != -1 and b != -1 and b > a:
+            return json.loads(s[a:b + 1])
+        raise
+
+
+def _call_openai_compatible(
+    base_url: str, prompt: str, model: str, api_key: str,
+    use_json_mode: bool = True,
+) -> dict:
+    """OpenAI 互換エンドポイント共通 caller。"""
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+    }
+    if use_json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    try:
+        response = client.chat.completions.create(**kwargs)
+    except Exception:
+        # response_format 非対応な model/endpoint は外して再試行
+        kwargs.pop("response_format", None)
+        response = client.chat.completions.create(**kwargs)
+    return _loads_json_lenient(response.choices[0].message.content)
+
+
+def _call_nvidia(prompt: str, model: str, api_key: str, schema: Optional[dict] = None) -> dict:
+    """NVIDIA NIM（integrate.api.nvidia.com, OpenAI 互換）— 無料枠が広い。"""
+    return _call_openai_compatible(
+        "https://integrate.api.nvidia.com/v1", prompt, model, api_key)
+
+
+def _call_sambanova(prompt: str, model: str, api_key: str, schema: Optional[dict] = None) -> dict:
+    """SambaNova Cloud（api.sambanova.ai, OpenAI 互換）— 高速・無料枠あり。"""
+    return _call_openai_compatible(
+        "https://api.sambanova.ai/v1", prompt, model, api_key)
+
+
+def _call_openrouter(prompt: str, model: str, api_key: str, schema: Optional[dict] = None) -> dict:
+    """OpenRouter（openrouter.ai, OpenAI 互換）— :free モデル群（日次上限あり）。"""
+    return _call_openai_compatible(
+        "https://openrouter.ai/api/v1", prompt, model, api_key)
+
+
 # Provider registry — 新プロバイダ追加はここに1行
 # 各 caller は (prompt, model, api_key, schema=None) -> dict のシグネチャ
 _PROVIDER_CALLERS: dict[str, Callable[..., dict]] = {
-    "gemini":   _call_gemini,
-    "groq":     _call_groq,
-    "cerebras": _call_cerebras,
-    "ollama":   _call_ollama,
+    "gemini":    _call_gemini,
+    "groq":      _call_groq,
+    "cerebras":  _call_cerebras,
+    "ollama":    _call_ollama,
+    "nvidia":    _call_nvidia,
+    "sambanova": _call_sambanova,
+    "openrouter": _call_openrouter,
 }
 
 
