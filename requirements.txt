@@ -32,6 +32,7 @@ openpyxl>=3.1.0
 gspread>=6.0.0
 google-auth>=2.27.0
 
-# YOLO (heavy — Streamlit Cloud users can comment out if not using count_yolo)
-ultralytics>=8.1.0
+# YOLO (heavy — Streamlit Cloud のビルド失敗/OOM 回避のため無効化。
+# アプリ起動・ダッシュボード・予測には不要。YOLO スクレイプを回す環境でだけ有効化する)
+# ultralytics>=8.1.0
 pillow>=10.2.0
