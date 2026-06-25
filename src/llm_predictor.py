@@ -961,7 +961,8 @@ def _call_groq(
 ) -> dict:
     """Groq API（OpenAI 互換）— Llama 3.3 70B 等のオープンソースモデル"""
     from openai import OpenAI
-    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1",
+                    timeout=20.0, max_retries=0)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
@@ -979,7 +980,8 @@ def _call_cerebras(
     無料 tier の TPM が Groq より広い（30k vs 12k）ので大量バッチ抽出向き。
     """
     from openai import OpenAI
-    client = OpenAI(api_key=api_key, base_url="https://api.cerebras.ai/v1")
+    client = OpenAI(api_key=api_key, base_url="https://api.cerebras.ai/v1",
+                    timeout=20.0, max_retries=0)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
@@ -1034,7 +1036,7 @@ def _call_openai_compatible(
 ) -> dict:
     """OpenAI 互換エンドポイント共通 caller。"""
     from openai import OpenAI
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=20.0, max_retries=0)
     kwargs: dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
