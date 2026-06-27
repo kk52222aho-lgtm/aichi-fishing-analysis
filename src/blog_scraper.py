@@ -28,6 +28,7 @@ import argparse
 import json
 import re
 import time
+import unicodedata
 import urllib.parse
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
@@ -279,6 +280,65 @@ def list_entries_toshikazu(
     return out
 
 
+_KYUROKU_DATE = re.compile(r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+
+
+def _kyuroku_page_url(page: int) -> str:
+    return "https://tsuri96.com/tyouka/" if page == 1 else f"https://tsuri96.com/tyouka/pageid={page}"
+
+
+def list_entries_kyuroku(
+    months_back: int = 6,
+    sleep_sec: float = 0.5,
+    max_pages: int = 400,
+) -> list[Entry]:
+    """久六釣船（tsuri96.com/tyouka/）から日付ブロックを列挙（新→旧）。
+
+    個別記事ページが無く一覧に日付ブロック直書きなので、各日付を1エントリとし
+    URL は合成（.../pageid=N#d=YYYY-MM-DD）。全角数字は NFKC で正規化。
+    """
+    cutoff = datetime.now(tz=JST) - timedelta(days=months_back * 31)
+    out: list[Entry] = []
+    seen: set[str] = set()
+
+    for page in range(1, max_pages + 1):
+        try:
+            r = requests.get(_kyuroku_page_url(page), headers=HEADERS, timeout=_TIMEOUT)
+            r.raise_for_status()
+        except requests.RequestException as e:
+            print(f"⚠️ kyuroku p{page}: {e}")
+            break
+        txt = unicodedata.normalize(
+            "NFKC", re.sub(r"<[^>]+>", " ", r.content.decode(r.apparent_encoding or "utf-8", "replace")))
+        ms = list(_KYUROKU_DATE.finditer(txt))
+        if not ms:
+            break
+        stop = False
+        found = 0
+        for m in ms:
+            try:
+                dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                              hour=5, minute=30, tzinfo=JST)
+            except ValueError:
+                continue
+            key = dt.date().isoformat()
+            if key in seen:
+                continue
+            seen.add(key)
+            found += 1
+            if dt < cutoff:
+                stop = True
+                break
+            out.append(Entry(url=f"{_kyuroku_page_url(page)}#d={key}",
+                             posted_at=dt, title="", entry_id=f"kyuroku-{key}"))
+        if stop or found == 0:
+            break
+        time.sleep(sleep_sec)
+
+    out.sort(key=lambda e: e.posted_at, reverse=True)
+    return out
+
+
 def _registry_platform(blog_id: str) -> tuple[str, str]:
     """registry から (platform, blog_url) を返す。fallback は ('ameblo', '')。"""
     try:
@@ -318,6 +378,9 @@ def list_entries(
         if "toshikazumaru" in blog_url:
             return list_entries_toshikazu(months_back=months_back, sleep_sec=sleep_sec,
                                           max_pages=max(max_pages, 500))
+        if "tsuri96.com" in blog_url:
+            return list_entries_kyuroku(months_back=months_back, sleep_sec=sleep_sec,
+                                        max_pages=max(max_pages, 400))
         print(f"⚠️ {blog_id}: custom platform だが対応 scraper 未実装 ({blog_url})")
         return []
 

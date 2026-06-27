@@ -182,6 +182,39 @@ def _fetch_body_ishikawamaru(url: str) -> Optional[dict]:
     return {"title": title[:160], "body_text": text, "entry_id": m.group(1) if m else ""}
 
 
+_KYUROKU_DATE_RE = re.compile(r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+_kyuroku_page_cache: dict[str, str] = {}
+
+
+def _fetch_body_kyuroku(url: str) -> Optional[dict]:
+    """久六釣船（tsuri96.com）: 合成URL(.../pageid=N#d=YYYY-MM-DD)から該当日付ブロックを返す。"""
+    import unicodedata
+    m = re.search(r"#d=(\d{4}-\d{2}-\d{2})", url)
+    if not m:
+        return None
+    target = m.group(1)
+    page_url = url.split("#")[0]
+    txt = _kyuroku_page_cache.get(page_url)
+    if txt is None:
+        try:
+            r = requests.get(page_url, headers=HEADERS, timeout=_TIMEOUT)
+            r.raise_for_status()
+        except requests.RequestException:
+            return None
+        raw = re.sub(r"<script.*?</script>|<style.*?</style>", " ",
+                     r.content.decode(r.apparent_encoding or "utf-8", "replace"), flags=re.S)
+        txt = unicodedata.normalize("NFKC", re.sub(r"<[^>]+>", " ", raw))
+        _kyuroku_page_cache[page_url] = txt
+    ms = list(_KYUROKU_DATE_RE.finditer(txt))
+    for i, mm in enumerate(ms):
+        d = f"{int(mm.group(1)):04d}-{int(mm.group(2)):02d}-{int(mm.group(3)):02d}"
+        if d == target:
+            end = ms[i + 1].start() if i + 1 < len(ms) else len(txt)
+            body = re.sub(r"\s+", " ", txt[mm.start():end]).strip()
+            return {"title": body[:60], "body_text": body[:2000], "entry_id": f"kyuroku-{target}"}
+    return None
+
+
 def _fetch_body_toshikazu(url: str) -> Optional[dict]:
     """としかず釣船（FC2）の記事本文を取得。コメント以降のフッタは落とす。"""
     try:
@@ -220,6 +253,8 @@ def fetch_body(url: str) -> Optional[dict]:
         return _fetch_body_ishikawamaru(url)
     if "toshikazumaru" in url:
         return _fetch_body_toshikazu(url)
+    if "tsuri96.com" in url:
+        return _fetch_body_kyuroku(url)
 
     data = fetch_entry_init_data(url)
     if not data:

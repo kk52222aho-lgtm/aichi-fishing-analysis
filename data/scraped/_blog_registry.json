@@ -65,5 +65,14 @@
     "blog_url": "http://toshikazumaru.blog72.fc2.com/",
     "blog_platform": "custom",
     "note": "南知多 新師崎。FC2ブログ。"
+  },
+  "kyuroku": {
+    "boat": "久六釣船",
+    "site": "morozaki",
+    "primary_signal": "qualitative",
+    "secondary_signal": "total_catch",
+    "blog_url": "https://tsuri96.com/tyouka/",
+    "blog_platform": "custom",
+    "note": "南知多 師崎。個別記事ページ無し・日付ブロック方式。全角数字。"
   }
 }
