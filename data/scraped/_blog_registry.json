@@ -48,5 +48,14 @@
     "blog_url": "https://daishinmaru.jp/fishing/",
     "blog_platform": "custom",
     "note": "豊浜港。スルメイカ/イサキ/ジギング全般。Ameblo ではなく独自サイト、scraper の拡張が必要。"
+  },
+  "ishikawamaru": {
+    "boat": "石川丸",
+    "site": "morozaki",
+    "primary_signal": "top_per_angler",
+    "secondary_signal": "qualitative",
+    "blog_url": "https://www.ishikawamaru.jp/blog/",
+    "blog_platform": "custom",
+    "note": "南知多・師崎。独自サイト。竿頭明示あり。"
   }
 }
