@@ -167,6 +167,63 @@ def list_entries_daishinmaru(
     return out
 
 
+def list_entries_ishikawamaru(
+    months_back: int = 6,
+    sleep_sec: float = 0.5,
+    max_pages: int = 500,
+) -> list[Entry]:
+    """ishikawamaru.jp/blog/ から記事を列挙（新→旧）。
+
+    一覧ページ /blog/page/N/（1ページ目は /blog/）を辿り、各カード(entry-info)の
+    日付と記事URL(/blog/<cat>/entry-<id>.html)を取得。cutoff より古くなったら停止。
+    """
+    cutoff = datetime.now(tz=JST) - timedelta(days=months_back * 31)
+    link_re = re.compile(
+        r'href="(https://www\.ishikawamaru\.jp/blog/[^"]+/entry-(\d+)\.html)"')
+    date_re = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+    out: list[Entry] = []
+    seen: set[str] = set()
+
+    for page in range(1, max_pages + 1):
+        url = ("https://www.ishikawamaru.jp/blog/" if page == 1
+               else f"https://www.ishikawamaru.jp/blog/page/{page}/")
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=_TIMEOUT)
+            r.raise_for_status()
+        except requests.RequestException as e:
+            print(f"⚠️ ishikawamaru p{page}: {e}")
+            break
+        html = r.content.decode("utf-8", "replace")
+        cards = re.split(r'(?=class="entry-info")', html)
+        stop = False
+        found = 0
+        for c in cards[1:]:
+            lm = link_re.search(c)
+            dm = date_re.search(re.sub(r"<[^>]+>", " ", c[:600]))
+            if not lm or not dm:
+                continue
+            found += 1
+            try:
+                dt = datetime(int(dm.group(1)), int(dm.group(2)), int(dm.group(3)),
+                              hour=5, minute=30, tzinfo=JST)
+            except ValueError:
+                continue
+            if dt < cutoff:
+                stop = True
+                break
+            u = lm.group(1)
+            if u in seen:
+                continue
+            seen.add(u)
+            out.append(Entry(url=u, posted_at=dt, title="", entry_id=lm.group(2)))
+        if stop or found == 0:
+            break
+        time.sleep(sleep_sec)
+
+    out.sort(key=lambda e: e.posted_at, reverse=True)
+    return out
+
+
 def _registry_platform(blog_id: str) -> tuple[str, str]:
     """registry から (platform, blog_url) を返す。fallback は ('ameblo', '')。"""
     try:
@@ -200,6 +257,9 @@ def list_entries(
     if platform == "custom":
         if "daishinmaru.jp" in blog_url:
             return list_entries_daishinmaru(months_back=months_back, sleep_sec=sleep_sec)
+        if "ishikawamaru.jp" in blog_url:
+            return list_entries_ishikawamaru(months_back=months_back, sleep_sec=sleep_sec,
+                                             max_pages=max(max_pages, 500))
         print(f"⚠️ {blog_id}: custom platform だが対応 scraper 未実装 ({blog_url})")
         return []
 
