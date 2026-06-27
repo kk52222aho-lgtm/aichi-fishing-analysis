@@ -92,10 +92,11 @@ if run:
                 species=sp, target_date=target_date,
                 boat=boat, provider=provider, use_cache=True,
             )
-            return {"boat": boat, "species": sp,
-                    "tier": r.get("prediction", {}).get("tier"), "err": None}
+            p = r.get("prediction", {})
+            return {"boat": boat, "species": sp, "tier": p.get("tier"),
+                    "score": p.get("predicted_top_per_angler"), "err": None}
         except Exception as e:
-            return {"boat": boat, "species": sp, "tier": None, "err": str(e)}
+            return {"boat": boat, "species": sp, "tier": None, "score": None, "err": str(e)}
 
     prog = st.progress(0.0, text="評価中...")
     results: list[dict] = []
@@ -117,29 +118,40 @@ if run:
             st.caption(f"エラー例: {errs[0][:200]}")
         st.stop()
 
-    def band(t: int) -> str:
-        return "high" if t >= 4 else ("mid" if t == 3 else "low")
+    n = len(ok)
+    n_high = sum(1 for r in ok if int(r["tier"]) >= 4)
+    n_low = sum(1 for r in ok if int(r["tier"]) <= 2)
 
-    groups: dict[str, list[str]] = {"high": [], "mid": [], "low": []}
-    for r in sorted(ok, key=lambda r: (r["boat"], r["species"])):  # 行名順・順位なし
-        groups[band(int(r["tier"]))].append(f"**{r['boat']}** × {r['species']}")
+    st.subheader(f"{target_date.month}/{target_date.day} の判定")
 
-    st.subheader(f"{target_date.month}/{target_date.day} の \"ここ乗っとけ\"")
-    if groups["high"]:
-        st.markdown("### 🔴 高め傾向")
-        for x in groups["high"]:
-            st.markdown(f"- {x}")
+    # ── A: 今日そもそも出る日か（絶対tierの集計＝日マタギ判断）──
+    st.markdown("#### 🗓️ 今日は出る日か？")
+    if n_high >= max(1, n // 2):
+        st.success(f"**全体に好調な日** — {n}通り中 {n_high} が平年比「高め」。どこ乗っても悪くない。")
+    elif n_high == 0 and n_low >= max(1, n // 2):
+        st.error(f"**全体に渋い日** — 高めゼロ（{n}通り中 {n_low} が「低め」）。日を変えるのも手。")
     else:
-        st.success("今日は平年並み。どこも大きな差はなさそうです。")
+        st.info(f"**平年並みの日** — {n}通り中 高め{n_high}／低め{n_low}。大きな差は出ていない。")
 
-    if groups["mid"]:
-        st.markdown("### 🟡 並")
-        for x in groups["mid"]:
-            st.markdown(f"- {x}")
+    # ── B: その中で相対的に上は（日内ランキングを3分割＝日ナカの船選び）──
+    st.markdown("#### 🎣 その中で相対的に上は？")
+    st.caption("その日に評価した中での相対順位です（絶対値ではありません）。")
+    ranked = sorted(
+        ok, key=lambda r: (r["score"] if r.get("score") is not None else r["tier"]),
+        reverse=True,
+    )
+    if len(ranked) >= 3:
+        k = max(1, len(ranked) // 3)
+        bands = [("🔴 上位", ranked[:k]),
+                 ("🟡 中位", ranked[k:len(ranked) - k]),
+                 ("🔵 下位", ranked[len(ranked) - k:])]
+    else:
+        bands = [("評価結果", ranked)]
+    for label, items in bands:
+        if not items:
+            continue
+        st.markdown(f"**{label}**")
+        for r in sorted(items, key=lambda r: (r["boat"], r["species"])):  # 帯内は行名順
+            st.markdown(f"- **{r['boat']}** × {r['species']}")
 
-    if groups["low"]:
-        with st.expander("🔵 低め傾向（参考）"):
-            for x in groups["low"]:
-                st.markdown(f"- {x}")
-
-    st.caption("※ tier 内は順位を付けていません（差は弱いため）。絶対匹数は表示しません。")
+    st.caption("※ 帯の中は順位を付けていません（差は弱いため）。絶対匹数は表示しません。")
