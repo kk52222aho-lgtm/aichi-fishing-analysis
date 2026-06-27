@@ -57,5 +57,13 @@
     "blog_url": "https://www.ishikawamaru.jp/blog/",
     "blog_platform": "custom",
     "note": "南知多・師崎。独自サイト。竿頭明示あり。"
+  },
+  "toshikazumaru": {
+    "boat": "としかず釣船",
+    "site": "morozaki",
+    "primary_signal": "qualitative",
+    "blog_url": "http://toshikazumaru.blog72.fc2.com/",
+    "blog_platform": "custom",
+    "note": "南知多 新師崎。FC2ブログ。"
   }
 }

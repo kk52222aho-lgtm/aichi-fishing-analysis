@@ -224,6 +224,61 @@ def list_entries_ishikawamaru(
     return out
 
 
+def list_entries_toshikazu(
+    months_back: int = 6,
+    sleep_sec: float = 0.5,
+    max_pages: int = 500,
+) -> list[Entry]:
+    """としかず釣船（FC2ブログ toshikazumaru.blog72.fc2.com）から記事を列挙（新→旧）。
+
+    一覧 ?page=N を辿り、blog-entry-<id>.html と直後の日付(YYYY-MM-DD)を取得。
+    cutoff より古くなったら停止。
+    """
+    base = "http://toshikazumaru.blog72.fc2.com/"
+    cutoff = datetime.now(tz=JST) - timedelta(days=months_back * 31)
+    out: list[Entry] = []
+    seen: set[str] = set()
+
+    for page in range(1, max_pages + 1):
+        url = base if page == 1 else base + f"?page={page}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=_TIMEOUT)
+            r.raise_for_status()
+        except requests.RequestException as e:
+            print(f"⚠️ toshikazu p{page}: {e}")
+            break
+        html = r.content.decode(r.apparent_encoding or "utf-8", "replace")
+        parts = re.split(r"blog-entry-(\d+)\.html", html)
+        stop = False
+        found = 0
+        for i in range(1, len(parts), 2):
+            eid = parts[i]
+            chunk = parts[i + 1] if i + 1 < len(parts) else ""
+            if eid in seen:
+                continue
+            dm = re.search(r"(20\d{2})-(\d{1,2})-(\d{1,2})", chunk[:400])
+            if not dm:
+                continue
+            seen.add(eid)
+            found += 1
+            try:
+                dt = datetime(int(dm.group(1)), int(dm.group(2)), int(dm.group(3)),
+                              hour=5, minute=30, tzinfo=JST)
+            except ValueError:
+                continue
+            if dt < cutoff:
+                stop = True
+                break
+            out.append(Entry(url=f"{base}blog-entry-{eid}.html",
+                             posted_at=dt, title="", entry_id=eid))
+        if stop or found == 0:
+            break
+        time.sleep(sleep_sec)
+
+    out.sort(key=lambda e: e.posted_at, reverse=True)
+    return out
+
+
 def _registry_platform(blog_id: str) -> tuple[str, str]:
     """registry から (platform, blog_url) を返す。fallback は ('ameblo', '')。"""
     try:
@@ -260,6 +315,9 @@ def list_entries(
         if "ishikawamaru.jp" in blog_url:
             return list_entries_ishikawamaru(months_back=months_back, sleep_sec=sleep_sec,
                                              max_pages=max(max_pages, 500))
+        if "toshikazumaru" in blog_url:
+            return list_entries_toshikazu(months_back=months_back, sleep_sec=sleep_sec,
+                                          max_pages=max(max_pages, 500))
         print(f"⚠️ {blog_id}: custom platform だが対応 scraper 未実装 ({blog_url})")
         return []
 

@@ -182,6 +182,30 @@ def _fetch_body_ishikawamaru(url: str) -> Optional[dict]:
     return {"title": title[:160], "body_text": text, "entry_id": m.group(1) if m else ""}
 
 
+def _fetch_body_toshikazu(url: str) -> Optional[dict]:
+    """としかず釣船（FC2）の記事本文を取得。コメント以降のフッタは落とす。"""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+    except requests.RequestException:
+        return None
+    html = r.content.decode(r.apparent_encoding or "utf-8", "replace")
+    soup = BeautifulSoup(html, "html.parser")
+    title = ""
+    if soup.title and soup.title.string:
+        title = soup.title.string.split("|")[0].strip()
+    body_tag = soup.find("article") or soup.find("main") or soup.body
+    if body_tag is None:
+        return None
+    for tag_name in ("script", "style", "nav", "footer", "header"):
+        for t in body_tag.find_all(tag_name):
+            t.decompose()
+    text = re.sub(r"\s+", " ", body_tag.get_text(" ", strip=True))
+    text = re.split(r"コメント:\d+", text)[0]  # FC2 フッタ以降を除去
+    m = re.search(r"blog-entry-(\d+)", url)
+    return {"title": title[:160], "body_text": text[:2000], "entry_id": m.group(1) if m else ""}
+
+
 def fetch_body(url: str) -> Optional[dict]:
     """エントリページからタイトルと本文プレーンテキストを返す。
 
@@ -194,6 +218,8 @@ def fetch_body(url: str) -> Optional[dict]:
         return _fetch_body_daishinmaru(url)
     if "ishikawamaru.jp" in url:
         return _fetch_body_ishikawamaru(url)
+    if "toshikazumaru" in url:
+        return _fetch_body_toshikazu(url)
 
     data = fetch_entry_init_data(url)
     if not data:
