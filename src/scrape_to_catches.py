@@ -100,6 +100,22 @@ def _blog_id_from_url(url: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+def _match_custom_blog_id(url: str, registry: dict[str, dict]) -> Optional[str]:
+    """独自サイトの URL を registry の blog_url とホスト名で突き合わせて blog_id 逆引き。
+    ameblo 以外の船宿(石川丸/久六/としかず/大進丸)の boat 解決用。"""
+    if not url:
+        return None
+    from urllib.parse import urlparse
+    host = urlparse(url).netloc.lower()
+    if not host:
+        return None
+    for bid, entry in registry.items():
+        bhost = urlparse(entry.get("blog_url") or "").netloc.lower()
+        if bhost and (bhost == host or host.endswith("." + bhost) or bhost.endswith("." + host)):
+            return bid
+    return None
+
+
 def load_blog_registry() -> dict[str, dict]:
     """blog_id → {boat, site, ...} の registry を読み込む。"""
     if not BLOG_REGISTRY_PATH.exists():
@@ -259,9 +275,12 @@ def summary_to_rows(
 
     # ── boat/site の解決（registry 優先、無ければ引数の default） ──
     source_url = summary.get("source_url", "")
-    blog_id = _blog_id_from_url(source_url)
     if blog_registry is None:
         blog_registry = load_blog_registry()
+    blog_id = _blog_id_from_url(source_url)
+    if not blog_id or blog_id not in blog_registry:
+        # ameblo で引けない＝独自サイト → ホスト名で registry 逆引き
+        blog_id = _match_custom_blog_id(source_url, blog_registry) or blog_id
     reg_entry = blog_registry.get(blog_id or "", {})
     resolved_boat = reg_entry.get("boat") or boat
     resolved_site = reg_entry.get("site") or site
