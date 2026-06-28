@@ -74,5 +74,17 @@
     "blog_url": "https://tsuri96.com/tyouka/",
     "blog_platform": "custom",
     "note": "南知多 師崎。個別記事ページ無し・日付ブロック方式。全角数字。"
+  },
+  "yamadragon2012": {
+    "boat": "ブルードラゴン",
+    "site": "morozaki",
+    "primary_signal": "qualitative",
+    "note": "南知多・片名。ameblo。イカ/青物/鯛。"
+  },
+  "pinkkappa-kaioumaru": {
+    "boat": "海王丸",
+    "site": "morozaki",
+    "primary_signal": "top_per_angler",
+    "note": "片名港。ameblo。イサキ竿頭数値あり。"
   }
 }
