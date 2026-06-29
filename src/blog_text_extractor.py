@@ -189,11 +189,16 @@ _kyuroku_page_cache: dict[str, str] = {}
 def _fetch_body_kyuroku(url: str) -> Optional[dict]:
     """久六釣船（tsuri96.com）: 合成URL(.../pageid=N#d=YYYY-MM-DD)から該当日付ブロックを返す。"""
     import unicodedata
-    m = re.search(r"#d=(\d{4}-\d{2}-\d{2})", url)
-    if not m:
-        return None
-    target = m.group(1)
-    page_url = url.split("#")[0]
+    # 新形式 .../tyouka/YYYY-MM-DD_pN（slug衝突回避）。旧 #d= 形式も後方互換で受ける。
+    m = re.search(r"/(\d{4}-\d{2}-\d{2})_p(\d+)", url)
+    if m:
+        target, page = m.group(1), int(m.group(2))
+    else:
+        m2 = re.search(r"#d=(\d{4}-\d{2}-\d{2})", url)
+        if not m2:
+            return None
+        target, page = m2.group(1), 1
+    page_url = "https://tsuri96.com/tyouka/" if page == 1 else f"https://tsuri96.com/tyouka/pageid={page}"
     txt = _kyuroku_page_cache.get(page_url)
     if txt is None:
         try:

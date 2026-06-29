@@ -329,7 +329,8 @@ def list_entries_kyuroku(
             if dt < cutoff:
                 stop = True
                 break
-            out.append(Entry(url=f"{_kyuroku_page_url(page)}#d={key}",
+            # slug がユニークになるよう日付+ページをパスに埋める（#fragment は slug 生成で捨てられ衝突するため）
+            out.append(Entry(url=f"https://tsuri96.com/tyouka/{key}_p{page}",
                              posted_at=dt, title="", entry_id=f"kyuroku-{key}"))
         if stop or found == 0:
             break
