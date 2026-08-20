@@ -60,6 +60,28 @@ def _push() -> subprocess.CompletedProcess:
                           cwd=ROOT, capture_output=True, text=True, env=env)
 
 
+def _push_pending() -> None:
+    """前回 push に失敗して溜まっとる commit があれば先に流す。
+
+    「新規行なし」で早期 return する経路が push より手前にあるので、
+    これが無いと『commit はできたが push が落ちた』日の分が永久に残る
+    （2026-08-20 に実際 403 で 1 本取り残された）。毎回の頭で回収する。
+    """
+    if _git("fetch", "origin", "--quiet").returncode:
+        return
+    r = _git("rev-list", "--count", "origin/main..HEAD")
+    n = (r.stdout or "").strip()
+    if not n.isdigit() or int(n) == 0:
+        return
+    print(f"↻ 未 push の commit が {n} 本ある。先に流す。")
+    r = _push()
+    if r.returncode:
+        print("⚠️ 回収 push も失敗:")
+        print((r.stderr or "").strip()[:300])
+    else:
+        print("✅ 回収 push 済み")
+
+
 def status() -> None:
     """通信もAPIも使わずに、今どこまで貯まっとるかだけ出す。"""
     path = config.FISHING_DIR / "catches.csv"
@@ -94,6 +116,8 @@ def main() -> int:
         return 0
 
     print(f"===== 日次更新 {datetime.now():%Y-%m-%d %H:%M:%S} =====", flush=True)
+    if not a.no_git and not a.no_push:
+        _push_pending()
     path = config.FISHING_DIR / "catches.csv"
     before = len(pd.read_csv(path)) if path.exists() else 0
 
