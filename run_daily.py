@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -38,6 +39,25 @@ DEFAULT_MONTHS = 2   # PC が長めに落ちとっても取り返せる窓
 
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+
+
+def _push() -> subprocess.CompletedProcess:
+    """GITHUB_TOKEN を環境から外して push する。
+
+    Git Credential Manager は環境変数 GITHUB_TOKEN があるとそれを優先して掴む。
+    `.env` に入っとる PAT は fine-grained で Contents:write を持っとらんので、
+    config.load_env() が env に流し込んだ瞬間に push が 403 になる
+    （2026-08-20 実測: タスクからの push が
+      `Permission to kk52222aho-lgtm/... denied` で落ちた。
+      同じ環境から GITHUB_TOKEN を抜くだけで rc=0 になる）。
+    抽出用の API キーを読むために .env は必要なので、git に渡す env でだけ落とす。
+
+    PAT に Contents:write を付ければトークンでも push できるようになるが、
+    それは GitHub 側の設定作業なのでここでは触らん。
+    """
+    env = {k: v for k, v in os.environ.items() if k not in ("GITHUB_TOKEN", "GH_TOKEN")}
+    return subprocess.run(["git", "push", "origin", "HEAD"],
+                          cwd=ROOT, capture_output=True, text=True, env=env)
 
 
 def status() -> None:
@@ -100,7 +120,7 @@ def main() -> int:
         return 0
 
     # push は競合しうる（Colab 側からも push される）。落ちても手元の更新は残る。
-    r = _git("push", "origin", "HEAD")
+    r = _push()
     if r.returncode:
         print(f"⚠️ push 失敗（手元の commit は残っとる。次回か手動で解消すること）:\n{r.stderr.strip()[:500]}")
         return 0
