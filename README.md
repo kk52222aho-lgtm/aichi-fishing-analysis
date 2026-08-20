@@ -307,6 +307,52 @@ GenesisEngine-v6 は **自動モデル学習器** として独立運用（別フ
 
 本リポは `count` のラベル供給元として YOLO を扱い、予測モデルの入力には画像由来情報を使わない（推論時に画像が無い前提のため）。
 
+## 日次収集の常駐（2026-08-20〜）
+
+船宿ブログは流れる源で、遡れる範囲にも限りがある。せやから毎日自動で取る。
+実際、更新手順が Colab のセルにしか無かった間に **catches.csv は 55 日ぶん止まっとった**。
+
+```sh
+python run_daily.py            # 更新 → integrated 再構築 → commit & push（タスクが毎朝これを回す）
+python run_daily.py --status   # 今どこまで貯まっとるか（通信もAPIも使わん）
+python run_daily.py --no-push  # commit まで
+python -m src.update_all --months 6            # 窓を広げて取り返す
+python -m src.update_all --dry-run             # 列挙だけ
+python -m src.update_all --aggregate-only      # スクレイプせず集約+追記だけ
+```
+
+- 対象は `data/scraped/_blog_registry.json` の全13隻（ameblo 8 + 独自サイト/FC2 5）。
+- スケジューラ: `aichi-fishing-daily` 毎日 06:30（`scripts/daily_fishing.cmd`、
+  PC が落ちとった日は次回起動時に走る）。ログは `logs/task.log`。
+- 本文抽出は正規表現 → 失敗したら LLM。無料プロバイダを**カスケード**で渡り歩く。
+
+### ハマりどころ（同じ穴を掘り返さんように）
+
+**1. ローカルで catches.csv を「作り直したら」アカン**
+`scrape_to_catches.aggregate()` は `data/scraped/` を全部読んで catches.csv を丸ごと
+書き直すが、`data/scraped/` は **.gitignore 対象**で commit されとるんは成果物の
+catches.csv だけ。手元のスクレイプキャッシュは Colab 版の一部でしかないので、
+全面再構築は必ず行が減る（実測: 手元 1,863 エントリからの再構築は 4,444 行で、
+commit 済み 9,846 行の半分以下。石川丸 2,345 行 → 1 行）。
+`update_all` は **新規キーの追記だけ**を行う。`(datetime, site, boat, species)` で
+突き合わせて既存行を勝たせる。
+
+**2. API キーは `C:\dev\.env`。`config.py` の `load_env()` が読む**
+元は Colab の `userdata` と環境変数しか見とらんかったので、ローカルでは
+キーが1本も解決できず「利用可能な LLM provider/キーがありません」で
+**本文は取れとるのに抽出だけ静かに全滅**しとった（実測 834 回）。
+
+**3. 無料 LLM の既定モデルは腐る**
+2026-08-20 時点で `llama-3.3-70b` 系が groq(404) / sambanova(decommissioned) /
+openrouter(`:free`廃止) の **3社まとめて消滅**しとった。抽出が急に `none` だらけに
+なったら、各社の `/v1/models` を叩いて `_PROVIDER_DEFAULTS`（`src/llm_predictor.py`）を
+現行 id に貼り替える。カスケード順は `src/blog_text_extractor.py: _FREE_CASCADE`。
+死んどるプロバイダを先頭に置くと、毎回タイムアウトを食ってから成功することになる。
+
+**4. `build_seed_dataset.build()` は `seed_meta_*.json` を今回の窓で上書きする**
+seed 構築時は 6〜12 ヶ月ぶんの来歴が入っとるので、3 ヶ月窓の定期更新でそのまま
+呼ぶと来歴が消える。`update_all` は退避して戻す。
+
 ## 釣果ログの seed データを作る（船宿ブログ → catches.csv）
 
 学習データが0からスタートするので、船宿ブログのバックナンバーを YOLO で処理して
