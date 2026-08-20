@@ -4,7 +4,41 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import os
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+# --- .env ローダ（依存なし） -------------------------------------------------
+# API キーは C:\dev\.env に集約して全プロジェクトで使い回す（chirashi-otoku と同じ流儀）。
+# これが無いと Colab 以外（ローカル Windows 等）では llm_predictor._get_api_key() が
+# 全プロバイダで空文字を返し、本文の LLM 抽出が黙って全滅する。
+# 実害: 2026-08-20 のローカル一括更新で新規 567 エントリ中 542 件が
+# extraction_method="none"（「利用可能な LLM provider/キーがありません」）になった。
+def _apply_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key, val = key.strip(), val.strip().strip('"').strip("'")
+        if key and val and not os.environ.get(key):  # 既存 env / 近い .env を優先
+            os.environ[key] = val
+
+
+def load_env(start: Path = PROJECT_ROOT, levels: int = 3) -> None:
+    """start から親を levels 段まで遡って各階層の .env を読む（近い方が優先）。"""
+    d = start
+    for _ in range(levels + 1):
+        _apply_env_file(d / ".env")
+        if d.parent == d:
+            break
+        d = d.parent
+
+
+load_env()
 
 DATA_DIR = PROJECT_ROOT / "data"
 WEATHER_DIR = DATA_DIR / "weather"

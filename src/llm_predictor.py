@@ -45,15 +45,19 @@ from . import config, data_integrator
 TIER_LABELS = ("厳しい", "やや渋い", "普通", "好調", "大漁")
 
 # プロバイダごとのデフォルトモデル
+# 既定モデル。無料枠のモデルは予告なく廃止されるので、疎通が切れたら
+# 各社の /v1/models を叩いて現行 id に貼り替えること。
+# 2026-08-20 実測: llama-3.3-70b 系は groq/sambanova/openrouter の全てで消滅済み
+# （groq 404 / sambanova decommissioned / openrouter は :free 廃止）。
 _PROVIDER_DEFAULTS = {
     "gemini":    "gemini-2.5-flash",
-    "groq":      "llama-3.3-70b-versatile",
-    "cerebras":  "gpt-oss-120b",
+    "groq":      "openai/gpt-oss-120b",      # 実測 1.8s。最速かつ唯一安定
+    "cerebras":  "gpt-oss-120b",             # 2026-08-20 時点 402 Payment required
     "ollama":    "llama3.2:3b",
     # 追加の無料 OpenAI 互換プロバイダ（各社独立枠 → カスケードで総量増）
-    "nvidia":    "meta/llama-3.3-70b-instruct",
-    "sambanova": "Meta-Llama-3.3-70B-Instruct",
-    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
+    "nvidia":    "meta/llama-3.3-70b-instruct",   # 2026-08-20 時点 40s でタイムアウト
+    "sambanova": "gemma-4-31B-it",           # 実測 4.0s
+    "openrouter": "openai/gpt-oss-20b:free", # 実測 5.7s
 }
 
 # プロバイダごとの API キー候補（Colab userdata / 環境変数の名前）

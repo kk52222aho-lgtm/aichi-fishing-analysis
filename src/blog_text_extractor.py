@@ -389,7 +389,10 @@ _KNOWN_SPECIES_LIST = [
 
 # 既定のカスケード順（指定 provider / fallback の後に続けて試す無料 provider 群）。
 # キー未設定の provider は実行時に自動スキップ。各社の枠は独立なので総処理量が増える。
-_FREE_CASCADE = ("cerebras", "groq", "gemini", "nvidia", "sambanova", "openrouter")
+# 2026-08-20 の疎通実測に基づく順序（生きてる順）。
+#   groq 1.8s OK / sambanova 4.0s OK / openrouter 5.7s OK
+#   gemini 429 枯渇 / cerebras 402 / nvidia 40s timeout → 後ろに退避
+_FREE_CASCADE = ("groq", "sambanova", "openrouter", "gemini", "cerebras", "nvidia")
 
 
 def _extract_with_llm(
