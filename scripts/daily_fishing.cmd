@@ -1,9 +1,15 @@
 @echo off
-rem 釣り船ブログの日次収集。ブログは流れる源で、遡れる範囲にも限りがある。
-rem   1. 全13隻の新規エントリを取得 → 本文を LLM 抽出 → catches.csv に追記
-rem   2. integrated.parquet を再構築（アプリと予測が読む本体）
-rem   3. commit & push（push しとらん更新は Colab の再 clone で巻き戻るため）
-rem タスクスケジューラ: aichi-fishing-daily  毎日 06:30
+rem Daily collection from the charter-boat blogs. The blogs are a flowing source
+rem and only reach back so far, so a missed day is not always recoverable.
+rem   1. Fetch new entries for all 13 boats -> LLM extract -> append catches.csv
+rem   2. Rebuild integrated.parquet (what the app and the predictor read)
+rem   3. commit and push (unpushed updates are rolled back by Colab's re-clone)
+rem Scheduled task: aichi-fishing-daily  daily 06:30
+rem
+rem KEEP THIS FILE ASCII-ONLY. cmd.exe reads .cmd as CP932; UTF-8 Japanese in a
+rem rem line desynchronises the parser and the tail gets run as a command. It
+rem exits WITHOUT writing a log line, so nothing looks wrong from the outside.
+rem See memory feedback_silent_cron_death (29 days lost that way).
 cd /d %~dp0..
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
